@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
-  KeyboardAvoidingView,
+  Keyboard,
   Text,
   TouchableOpacity,
   View,
-  Platform,
   StyleSheet,
   ActivityIndicator,
   TextInput,
   Alert,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -68,6 +68,11 @@ const CreateAppointment = () => {
       return;
     }
 
+    if (appointmentDateTime <= new Date()) {
+      setErrorMessage('Appointment date must be in the future');
+      return;
+    }
+
     const appointmentData = {
       name,
       clinic_id: selectedClinic,
@@ -90,12 +95,7 @@ const CreateAppointment = () => {
       if (!response.ok) throw new Error(responseData.message || 'Failed to book appointment');
 
       Alert.alert('Success', 'Appointment confirmed!');
-      setName('');
-      setSelectedClinic(null);
-      setSelectedDoctor(null);
-      setReason('');
-      setAppointmentDateTime(new Date());
-      setErrorMessage('');
+      resetForm();
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -103,78 +103,90 @@ const CreateAppointment = () => {
     }
   };
 
+  const resetForm = () => {
+    setName('');
+    setSelectedClinic(null);
+    setSelectedDoctor(null);
+    setReason('');
+    setAppointmentDateTime(new Date());
+    setErrorMessage('');
+  };
+
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
-      <Text style={styles.title}>Book an Appointment</Text>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+      <View style={styles.container}>
+        <Text style={styles.title}>Book an Appointment</Text>
 
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Your Name</Text>
-        <TextInput style={styles.input} placeholder="Enter your name" value={name} onChangeText={setName} />
-      </View>
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>Your Name</Text>
+          <TextInput style={styles.input} placeholder="Enter your name" value={name} onChangeText={setName} />
+        </View>
 
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Appointment Date and Time</Text>
-        <TouchableOpacity onPress={() => setShowDatePicker(true)}>
-          <Text style={styles.input}>{appointmentDateTime.toLocaleString()}</Text>
-        </TouchableOpacity>
-        {showDatePicker && (
-          <DateTimePicker
-            value={appointmentDateTime}
-            mode="datetime"
-            display="default"
-            onChange={(event, date) => {
-              setShowDatePicker(false);
-              if (date) setAppointmentDateTime(date);
-            }}
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>Appointment Date and Time</Text>
+          <TouchableOpacity onPress={() => setShowDatePicker(true)}>
+            <Text style={styles.input}>{appointmentDateTime.toLocaleString()}</Text>
+          </TouchableOpacity>
+          {showDatePicker && (
+            <DateTimePicker
+              value={appointmentDateTime}
+              mode="datetime"
+              display="default"
+              onChange={(event, date) => {
+                setShowDatePicker(false);
+                if (date) setAppointmentDateTime(date);
+              }}
+            />
+          )}
+        </View>
+
+        <View style={[styles.inputContainer, { zIndex: clinicOpen ? 300 : 1 }]}> 
+          <Text style={styles.label}>Select a Clinic</Text>
+          <DropDownPicker
+            open={clinicOpen}
+            value={selectedClinic}
+            items={clinics}
+            setOpen={setClinicOpen}
+            setValue={setSelectedClinic}
+            onChangeValue={fetchDoctors}
+            placeholder="Choose a Clinic"
           />
+        </View>
+
+        <View style={[styles.inputContainer, { zIndex: doctorOpen ? 200 : 1 }]}> 
+          <Text style={styles.label}>Select a Doctor</Text>
+          <DropDownPicker
+            open={doctorOpen}
+            value={selectedDoctor}
+            items={doctors}
+            setOpen={setDoctorOpen}
+            setValue={setSelectedDoctor}
+            placeholder="Choose a Doctor"
+            disabled={!selectedClinic}
+          />
+        </View>
+
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>Reason for Consultation</Text>
+          <TextInput style={styles.input} placeholder="Enter reason" value={reason} onChangeText={setReason} multiline />
+        </View>
+
+        {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+
+        {loading ? (
+          <ActivityIndicator size="large" color="#007bff" />
+        ) : (
+          <TouchableOpacity style={styles.submitButton} onPress={handleBookAppointment}>
+            <Text style={styles.buttonText}>Confirm Appointment</Text>
+          </TouchableOpacity>
         )}
       </View>
-
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Select a Clinic</Text>
-        <DropDownPicker
-          open={clinicOpen}
-          value={selectedClinic}
-          items={clinics}
-          setOpen={setClinicOpen}
-          setValue={setSelectedClinic}
-          onChangeValue={fetchDoctors}
-          placeholder="Choose a Clinic"
-        />
-      </View>
-
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Select a Doctor</Text>
-        <DropDownPicker
-          open={doctorOpen}
-          value={selectedDoctor}
-          items={doctors}
-          setOpen={setDoctorOpen}
-          setValue={setSelectedDoctor}
-          placeholder="Choose a Doctor"
-          disabled={!selectedClinic}
-        />
-      </View>
-
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Reason for Consultation</Text>
-        <TextInput style={styles.input} placeholder="Enter reason" value={reason} onChangeText={setReason} multiline />
-      </View>
-
-      {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
-
-      {loading ? (
-        <ActivityIndicator size="large" color="#007bff" />
-      ) : (
-        <TouchableOpacity style={styles.submitButton} onPress={handleBookAppointment}>
-          <Text style={styles.buttonText}>Confirm Appointment</Text>
-        </TouchableOpacity>
-      )}
-    </KeyboardAvoidingView>
+    </TouchableWithoutFeedback>
   );
 };
 
 export default CreateAppointment;
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20 },
