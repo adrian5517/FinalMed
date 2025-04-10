@@ -1,5 +1,6 @@
-import { View, Text, StyleSheet, Image, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from "react-native";
 import { Link } from "expo-router";
+import * as Linking from "expo-linking";
 
 export default function Home() {
   const fullname = "User"; // Replace this with actual user data
@@ -20,9 +21,26 @@ export default function Home() {
       status: "Appointment request pending for approval."
     }
   ];
+  const links = [
+    {
+      title: "5 Tips for a Healthy Lifestyle",
+      url: "https://healthmatters.nyp.org/habits-for-a-healthy-new-year/",
+      image: require("../assets/images/adaptive-icon.png"),
+    },
+    {
+      title: "The Importance of Regular Checkups",
+      url: "https://mypvhc.com/importance-regular-check-ups/",
+      image: require("../assets/images/adaptive-icon.png"),
+    },
+    {
+      title: "How to Manage Stress Effectively",
+      url: "https://example.com/manage-stress",
+      image: require("../assets/images/adaptive-icon.png"),
+    },
+  ];
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container}>
       <View style={styles.hr} />
       <Text style={styles.pt1}>Good day, {fullname}!</Text>
       <View style={styles.pt2}>
@@ -51,7 +69,18 @@ export default function Home() {
         ))}
       </View>
       <Text style={styles.header3txt}>Health Tips & News</Text>
-    </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} pagingEnabled contentContainerStyle={styles.scrollViewContent}>
+        {links.map((item, index) => (
+          <TouchableOpacity key={index} onPress={() => Linking.openURL(item.url)} style={styles.linkbox}>
+            <Image source={item.image} style={styles.linkboxImage} />
+            <View style={styles.linkboxTextWrapper}>
+              <Text style={styles.linkboxTitle}>{item.title}</Text>
+              <Text style={styles.linkboxSource}>Read More →</Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </ScrollView>
   );
 }
 
@@ -60,6 +89,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
     padding: 15,
+    paddingBottom: "50%",
   },
   hr: {
     borderBottomColor: "#00000080",
@@ -91,6 +121,7 @@ const styles = StyleSheet.create({
   boxWrapper: {
     alignItems: "center",
     width: 130,
+    paddingRight: 25,
   },
   boxText: {
     marginTop: 10,
@@ -145,4 +176,20 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginTop: 15,
   },
+  scrollViewContent: { paddingHorizontal: 5, gap: 15, paddingBottom: 150, paddingTop: 20 },
+  linkbox: {
+    paddingBottom: 10,
+    width: 220,
+    backgroundColor: "#FFF",
+    borderRadius: 10,
+    overflow: "hidden",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  linkboxImage: { width: "100%", height: 120, resizeMode: "cover" },
+  linkboxTextWrapper: { padding: 10 },
+  linkboxTitle: { fontSize: 16, fontWeight: "700", color: "#2C3E50" },
+  linkboxSource: { fontSize: 14, color: "#007BFF", marginTop: 5 },
 });

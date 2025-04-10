@@ -1,5 +1,15 @@
 import { Stack, useRouter, useSegments } from "expo-router";
-import { View, StyleSheet, TouchableOpacity, Text, Dimensions } from "react-native";
+
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Text,
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView,
+} from "react-native";
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 
 const screenWidth = Dimensions.get("window").width;
@@ -17,7 +27,7 @@ export default function Layout() {
   const isHome = segments.length === 0 || segments[0] === "Home";
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {!hideNavBar && (
         <View style={styles.header}>
           <TouchableOpacity
@@ -37,8 +47,11 @@ export default function Layout() {
         </View>
       )}
 
-      {/* Stack Navigation */}
-      <View style={styles.content}>
+      <KeyboardAvoidingView
+        style={styles.content}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={hideNavBar ? 0 : 80} // adjust this if needed
+      >
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="Signin" />
@@ -48,9 +61,8 @@ export default function Layout() {
           <Stack.Screen name="Doctors" />
           <Stack.Screen name="Status" />
         </Stack>
-      </View>
+      </KeyboardAvoidingView>
 
-      {/* Bottom Curved Navigation Bar */}
       {!hideNavBar && (
         <View style={styles.navBar}>
           {["Home", "Appointment", "Doctors", "Status", "Profile"].map((item, index) => {
@@ -73,7 +85,7 @@ export default function Layout() {
           })}
         </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -97,6 +109,7 @@ function getIconName(name) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#fff",
   },
   content: {
     flex: 1,
@@ -113,12 +126,11 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: "800",
     color: "#007bff",
-    height: -50,
   },
   med: {
     fontSize: 30,
     fontWeight: "800",
-    color: "#28a745",
+    color: "#82C45C",
   },
   iconButton: {
     padding: 10,
@@ -133,7 +145,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 80,
     backgroundColor: "#82C45C",
-    paddingBottom: 27,
+    paddingBottom: 23,
     position: "absolute",
     bottom: 0,
   },
