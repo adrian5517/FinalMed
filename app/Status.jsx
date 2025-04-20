@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
   headerLogo: {
     position: "absolute", // Position it absolutely
     top: -5, // Distance from the top of the card
-    right: -150, // Distance from the right of the card
+    right: -140, // Distance from the right of the card
     fontSize: 16,
     fontWeight: "bold",
   },
