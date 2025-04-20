@@ -22,7 +22,7 @@ export default function Layout() {
     segments.length === 0 ||
     segments[0] === "Signin" ||
     segments[0] === "CreateAccount" ||
-    segments[0] === "ForgotPassword";
+    segments[0] === "ForgotPassword" || segments[0] === "ChatList" || segments[0] === "ChatConversation";
 
   const isHome = segments.length === 0 || segments[0] === "Home";
 

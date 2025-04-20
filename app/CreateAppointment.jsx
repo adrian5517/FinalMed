@@ -10,12 +10,14 @@ import {
   Alert,
   TouchableWithoutFeedback,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import DropDownPicker from 'react-native-dropdown-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const API_URL = 'https://nagamedserver.onrender.com/api';
 
 const CreateAppointment = () => {
+  const navigation = useNavigation();
   const [name, setName] = useState('');
   const [clinicOpen, setClinicOpen] = useState(false);
   const [doctorOpen, setDoctorOpen] = useState(false);
@@ -94,8 +96,8 @@ const CreateAppointment = () => {
 
       if (!response.ok) throw new Error(responseData.message || 'Failed to book appointment');
 
-      Alert.alert('Success', 'Appointment confirmed!');
       resetForm();
+      navigation.navigate('AppointmentSuccess');
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
