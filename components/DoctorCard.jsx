@@ -1,9 +1,12 @@
 import React from "react";
 import { View, Text, Image, Pressable, StyleSheet, Dimensions } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window"); // Get the window width
 
 const DoctorCard = ({ name, specialization, contact, location, availability, image }) => {
+  const navigation = useNavigation(); // Move useNavigation inside the component
+
   return (
     <View style={styles.doctorCard}>
       <View style={styles.cardHeader}>
@@ -24,7 +27,10 @@ const DoctorCard = ({ name, specialization, contact, location, availability, ima
         <Text style={styles.availabilityText}>Availability status:</Text>
         <Text style={styles.availability}>{availability}</Text>
       </View>
-      <Pressable style={styles.bookNowButton}>
+      <Pressable
+        style={styles.bookNowButton}
+        onPress={() => navigation.navigate("CreateAppointment")} // Navigate to CreateAppointment
+      >
         <Text style={styles.bookNowText}>Book now</Text>
       </Pressable>
     </View>

@@ -135,7 +135,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
     padding: 15,
+<<<<<<< HEAD
     marginBottom: 60,
+=======
+    marginBottom:50,
+>>>>>>> 0c9aaf784613db269ef990161f264c37ddf31fc2
   },
   profileSection: {
     alignItems: 'center',
@@ -296,6 +300,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 5,
+    marginBottom: 100,
   },
   createNewButtonText: {
     color: '#fff',
