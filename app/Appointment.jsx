@@ -1,179 +1,202 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, TextInput } from "react-native";
+import { Link } from "expo-router";
+import { useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
 
-const NagaMed = () => {
-  const navigation = useNavigation();
-  const [fullname, setFullname] = useState("Loading...");
-
-  const fetchUserData = async () => {
-    try {
-      const token = await AsyncStorage.getItem("userToken");
-      const response = await fetch("https://api.example.com/user/profile", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await response.json();
-      setFullname(data.fullname); // Assuming the API returns a `fullname` field
-    } catch (error) {
-      console.error("Error fetching user data:", error);
-      setFullname("User");
-    }
-  };
+export default function Home() {
+  const [fullname, setFullname] = useState("User");
+  const [doctors, setDoctors] = useState([]);
 
   useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const userId = await AsyncStorage.getItem("userId");
+        if (!userId) {
+          console.error("User ID not found.");
+          return;
+        }
+
+        const response = await fetch(`https://nagamedserver.onrender.com/api/user/${userId}`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch user data.");
+        }
+
+        const data = await response.json();
+        setFullname(data.fullname || "User");
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      }
+    };
+
+    const fetchDoctors = async () => {
+      try {
+        const response = await fetch("https://nagamedserver.onrender.com/api/doctor");
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Server responded with:", errorText);
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await response.text();
+          throw new Error(`Received non-JSON response: ${text.substring(0, 100)}...`);
+        }
+
+        const data = await response.json();
+        setDoctors(data);
+      } catch (error) {
+        console.error("Error fetching doctors:", error);
+        setDoctors([]);
+      }
+    };
+
     fetchUserData();
+    fetchDoctors();
   }, []);
 
+  const menuItems = [
+    { text: "Book Appointment", image: require("../assets/images/bookappointments.png"), path: "/CreateAppointment" },
+    { text: "Health Records", image: require("../assets/images/healthrecords.png"), path: "/Status" },
+    { text: "Consult Doctor", image: require("../assets/images/consultdoctor.png"), path: "/Doctors" },
+  ];
+
   return (
-    <View style={styles.mainContainer}>
-      <ScrollView style={styles.container}>
-        {/* Profile Section */}
-        <View style={styles.profileSection}>
-          <Image
-            source={require('../assets/images/bookappointments.png')}
-            style={styles.profileImage}
-          />
-          <Text style={styles.greetingText}>
-            Hello, <Text style={styles.fullname}>{fullname}</Text>
-          </Text>
+    <ScrollView style={styles.container}>
+      {/* Profile Section */}
+      <View style={styles.profileSection}>
+        <Image
+          source={require('../assets/images/bookappointments.png')}
+          style={styles.profileImage}
+        />
+        <View>
+          <Text style={styles.greetingText}>Hello, <Text style={styles.fullname}>{fullname}</Text></Text>
           <Text style={styles.locationText}>📍 San Felipe, Naga City</Text>
         </View>
+      </View>
 
-        {/* Search Bar */}
-        <Text style={styles.title}>Find your doctor</Text>
-        <View style={styles.searchBar}>
-          
-          <TextInput
-            placeholder="Search Doctor, Health issues"
-            style={styles.searchInput}
-            accessibilityLabel="Search input field"
-          />
-          <Ionicons name="search" size={20} color="#777" style={styles.searchIcon} />
-        </View>
+      {/* Search Bar */}
+      <View style={styles.searchBar}>
+        <Ionicons name="search" size={20} color="#777" style={styles.searchIcon} />
+        <TextInput
+          placeholder="Search Doctor, Health issues"
+          style={styles.searchInput}
+        />
+      </View>
 
-        {/* Options */}
-        <View style={styles.optionsContainer}>
-          {/* Online Consultation */}
-          <View style={[styles.optionCard, styles.onlineConsultation]}>
-            <Text style={styles.optionTitle}>Online Consultation</Text>
-            <TouchableOpacity style={styles.optionButton}>
-              <Text style={styles.optionButtonText}>Find doctor</Text>
+      {/* Menu Icons */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.menuScroll}>
+        {menuItems.map((item, index) => (
+          <Link key={index} href={item.path} asChild>
+            <TouchableOpacity style={styles.menuItem}>
+              <View style={styles.menuIcon}>
+                <Image source={item.image} style={styles.menuImage} />
+              </View>
+              <Text style={styles.menuText}>{item.text}</Text>
             </TouchableOpacity>
-          </View>
-
-          {/* Nearby Clinics */}
-          <View style={[styles.optionCard, styles.nearbyClinics]}>
-            <Text style={styles.optionTitle}>Nearby Clinics in Naga City</Text>
-            <TouchableOpacity style={styles.optionButton}>
-              <Text style={styles.optionButtonText}>Find Clinics</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Upcoming Appointments */}
-        <Text style={styles.sectionTitle}>Upcoming Appointment</Text>
-        <View style={styles.appointmentCard}>
-          <View style={styles.appointmentHeader}>
-            <Image
-              source={require('../assets/images/bookappointments.png')}
-              style={styles.appointmentImage}
-            />
-            <View>
-              <Text style={styles.appointmentDoctor}>Dr. Mario Aquino</Text>
-              <Text style={styles.appointmentSpecialization}>Heart Specialist</Text>
-            </View>
-          </View>
-          <Text style={styles.appointmentStatus}>Confirmed</Text>
-          <View style={styles.appointmentDetails}>
-            <Text>📅 Monday, Jan 4, 2025</Text>
-            <Text>⏰ 09:00 AM</Text>
-          </View>
-          <View style={styles.appointmentActions}>
-            <TouchableOpacity style={styles.rescheduleButton}>
-              <Text style={styles.actionButtonText}>Reschedule</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.cancelButton}>
-              <Text style={styles.actionButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Create New */}
-        <TouchableOpacity
-          onPress={() => navigation.navigate('CreateAppointment')}
-          style={styles.createNewButton}
-        >
-          <Text style={styles.createNewButtonText}>Create New +</Text>
-        </TouchableOpacity>
+          </Link>
+        ))}
       </ScrollView>
 
-      {/* Floating Chat Button */}
-      <TouchableOpacity 
-        style={styles.chatButton}
-        onPress={() => navigation.navigate('ChatList')}
-      >
-        <Ionicons name="chatbubble-ellipses" size={28} color="#fff" />
+      {/* Upcoming Appointment */}
+      <Text style={styles.sectionTitle}>Upcoming Appointment</Text>
+      <View style={styles.appointmentCard}>
+        {doctors.length > 0 ? (
+          <>
+            <View style={styles.appointmentHeader}>
+              <Image
+                source={require('../assets/images/bookappointments.png')}
+                style={styles.doctorImage}
+              />
+              <View>
+                <Text style={styles.doctorName}>{doctors[0].doctor_name}</Text>
+                <Text style={styles.doctorSpecialty}>{doctors[0].specialization}</Text>
+              </View>
+              <Text style={styles.appointmentStatus}>Confirmed</Text>
+            </View>
+            <View style={styles.appointmentDetails}>
+              <Text style={styles.detailText}>📅 Monday, Jan 4, 2025</Text>
+              <Text style={styles.detailText}>⏰ 09:00 AM</Text>
+            </View>
+            <View style={styles.appointmentActions}>
+              <TouchableOpacity style={styles.rescheduleButton}>
+                <Text style={styles.buttonText}>Reschedule</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.cancelButton}>
+                <Text style={styles.buttonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <Text style={styles.noAppointmentText}>No upcoming appointments</Text>
+        )}
+      </View>
+
+      {/* Available Doctors */}
+      <Text style={styles.sectionTitle}>Available Doctors</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.doctorsScroll}>
+        {doctors.map((doctor, index) => (
+          <View key={index} style={styles.doctorCard}>
+            <Image
+              source={require('../assets/images/bookappointments.png')}
+              style={styles.doctorImage}
+            />
+            <Text style={styles.doctorName}>{doctor.doctor_name}</Text>
+            <Text style={styles.doctorSpecialty}>{doctor.specialization}</Text>
+            <TouchableOpacity style={styles.bookButton}>
+              <Text style={styles.buttonText}>Book</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
+      </ScrollView>
+
+      {/* Create New Button */}
+      <TouchableOpacity style={styles.createButton}>
+        <Text style={styles.createButtonText}>Create New +</Text>
       </TouchableOpacity>
-
-      
-    </View>
+    </ScrollView>
   );
-};
-
-export default NagaMed;
+}
 
 const styles = StyleSheet.create({
-  mainContainer: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
     padding: 15,
-    marginBottom: 60, // Resolved value
   },
   profileSection: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 5,
+    marginBottom: 20,
   },
   profileImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginRight: 15,
   },
   greetingText: {
     fontSize: 18,
-    marginTop: 10,
     fontFamily: 'Poppins',
   },
   fullname: {
-    color: '#22577A',
     fontWeight: 'bold',
-    fontFamily: 'Poppins',
+    color: '#22577A',
   },
   locationText: {
     color: '#777',
-    fontFamily: 'Poppins',
-  },
-  title: {
-    fontWeight: 'bold',
-    fontSize: 16,
-    marginVertical: 10,
     fontFamily: 'Poppins',
   },
   searchBar: {
     flexDirection: 'row',
     backgroundColor: '#fff',
     borderRadius: 30,
-    borderColor: '#000000',
-    borderWidth: 0.5,
-    padding: 10,
+    padding: 15,
     alignItems: 'center',
+    marginBottom: 20,
+    elevation: 2,
   },
   searchIcon: {
     marginRight: 10,
@@ -182,166 +205,136 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: 'Poppins',
   },
-  optionsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 20,
+  menuScroll: {
+    marginBottom: 20,
   },
-  optionCard: {
-    padding: 20,
-    borderRadius: 15,
-    flex: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
+  menuItem: {
+    width: 120,
+    marginRight: 15,
+    alignItems: 'center',
   },
-  onlineConsultation: {
-    backgroundColor: '#D6EEF9',
-    marginRight: 10,
-  },
-  nearbyClinics: {
-    backgroundColor: '#C0F6A1',
-  },
-  optionTitle: {
-    fontWeight: 'bold',
-    fontFamily: 'Poppins',
-  },
-  optionButton: {
-    marginTop: 10,
-    backgroundColor: '#fff',
-    padding: 10,
+  menuIcon: {
+    width: 70,
+    height: 70,
+    backgroundColor: '#A7EC80',
     borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
   },
-  optionButtonText: {
+  menuImage: {
+    width: 40,
+    height: 40,
+  },
+  menuText: {
     textAlign: 'center',
     fontFamily: 'Poppins',
+    fontWeight: '600',
   },
   sectionTitle: {
+    fontSize: 18,
     fontWeight: 'bold',
-    fontSize: 16,
+    marginBottom: 15,
     fontFamily: 'Poppins',
   },
   appointmentCard: {
     backgroundColor: '#fff',
+    borderRadius: 15,
     padding: 15,
-    borderRadius: 20,
-    marginTop: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
+    marginBottom: 20,
+    elevation: 2,
   },
   appointmentHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 15,
   },
-  appointmentImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  doctorImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     marginRight: 15,
   },
-  appointmentDoctor: {
+  doctorName: {
     fontWeight: 'bold',
     fontFamily: 'Poppins',
   },
-  appointmentSpecialization: {
+  doctorSpecialty: {
     color: '#777',
     fontFamily: 'Poppins',
   },
   appointmentStatus: {
-    marginVertical: 10,
+    marginLeft: 'auto',
     color: '#57CC99',
-    textAlign: 'right',
     fontWeight: 'bold',
     fontFamily: 'Poppins',
   },
   appointmentDetails: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginBottom: 15,
+  },
+  detailText: {
     fontFamily: 'Poppins',
   },
   appointmentActions: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 15,
+    justifyContent: 'space-between',
   },
   rescheduleButton: {
     backgroundColor: '#57CC99',
     padding: 10,
-    borderRadius: 20,
+    borderRadius: 10,
+    flex: 1,
+    marginRight: 10,
   },
   cancelButton: {
     backgroundColor: '#E63946',
     padding: 10,
-    borderRadius: 20,
+    borderRadius: 10,
+    flex: 1,
   },
-  actionButtonText: {
+  buttonText: {
     color: '#fff',
     textAlign: 'center',
     fontFamily: 'Poppins',
   },
-  createNewButton: {
-    backgroundColor: '#82C45C',
+  noAppointmentText: {
+    textAlign: 'center',
+    fontFamily: 'Poppins',
+    color: '#777',
     padding: 20,
-    borderRadius: 13,
-    marginTop: 20,
-    marginBottom: 70,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
   },
-  createNewButtonText: {
+  doctorsScroll: {
+    marginBottom: 20,
+  },
+  doctorCard: {
+    width: 150,
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 15,
+    marginRight: 15,
+    alignItems: 'center',
+    elevation: 2,
+  },
+  bookButton: {
+    backgroundColor: '#22577A',
+    padding: 8,
+    borderRadius: 10,
+    marginTop: 10,
+    width: '100%',
+  },
+  createButton: {
+    backgroundColor: '#82C45C',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 20,
+    elevation: 2,
+  },
+  createButtonText: {
     color: '#fff',
     fontWeight: 'bold',
     fontFamily: 'Poppins',
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  navItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navText: {
-    fontSize: 12,
-    marginTop: 4,
-    color: '#666',
-    fontFamily: 'Poppins',
-  },
-  chatButton: {
-    position: 'absolute',
-    right: 20,
-    bottom: 80, 
-    backgroundColor: '#007AFF', 
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
   },
 });

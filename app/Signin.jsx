@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter, Stack } from "expo-router";
-
+import axios from "axios";
 export default function SignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,34 +19,35 @@ export default function SignIn() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  // Handle Sign-In API Call
   const handleSignIn = async () => {
     console.log("Signing in with:", email, password);
     setLoading(true);
-
+  
     try {
-      const response = await fetch("https://nagamedserver.onrender.com/api/user/signin", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
+      const response = await axios.post("https://nagamedserver.onrender.com/api/auth/signin", {
+        email,
+        password
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
+  
+      const data = response.data;
+  
+      if (response.status === 200) {
         console.log("Login Successful:", data);
-        setErrorMessage("");
-        
+        setErrorMessage(""); // Clear any previous error messages
+  
+        // Store the token and user full name in AsyncStorage
         if (data.token) {
           await AsyncStorage.setItem("authToken", data.token);
         }
-        if (data.name) {
-          await AsyncStorage.setItem("fullName", data.fullname);
+        if (data.user?.fullname) {  // Ensure that fullname exists
+          await AsyncStorage.setItem("fullName", data.user.fullname);
         }
-
-        router.push("/Home");
+  
+        // Navigate to the Home screen (adjust navigation for React Navigation or Next.js)
+        router.push("/Home");  // For Next.js (if you're using it), this works fine
+        
+        // For React Native (with React Navigation), replace the above line with:
+        // navigation.navigate('Home');
       } else {
         setErrorMessage(data.message || "Invalid email or password.");
       }
@@ -57,7 +58,7 @@ export default function SignIn() {
       setLoading(false);
     }
   };
-
+  
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />

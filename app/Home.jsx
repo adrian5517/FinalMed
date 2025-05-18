@@ -1,95 +1,141 @@
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from "react-native";
 import { Link } from "expo-router";
-import * as Linking from "expo-linking";
+import { useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { StatusBar } from "expo-status-bar";
 
 export default function Home() {
-  const fullname = "User"; // Replace this with actual user data
+  const [fullname, setFullname] = useState("User");
+  const [doctors, setDoctors] = useState([]);
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const userId = await AsyncStorage.getItem("userId");
+        if (!userId) {
+          console.error("User ID not found.");
+          return;
+        }
+
+        const response = await fetch(`https://nagamedserver.onrender.com/api/user/${userId}`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch user data.");
+        }
+
+        const data = await response.json();
+        setFullname(data.fullname || "User");
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      }
+    };
+
+    const fetchDoctors = async () => {
+      try {
+        const response = await fetch("https://nagamedserver.onrender.com/api/doctor");
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Server responded with:", errorText);
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await response.text();
+          throw new Error(`Received non-JSON response: ${text.substring(0, 100)}...`);
+        }
+
+        const data = await response.json();
+        setDoctors(data); // Now showing all doctors
+      } catch (error) {
+        console.error("Error fetching doctors:", error);
+        setDoctors([]);
+      }
+    };
+
+    fetchUserData();
+    fetchDoctors();
+  }, []);
 
   const menuItems = [
     { text: "Book Appointment", image: require("../assets/images/bookappointments.png"), path: "/CreateAppointment" },
     { text: "Health Records", image: require("../assets/images/healthrecords.png"), path: "/Status" },
-    { text: "Consult Doctor", image: require("../assets/images/consultdoctor.png"), path: "/Doctors" }
-  ];
-
-  const appointments = [
-    {
-      doctor: "Dr. Marlo Aquino",
-      status: "Appointment confirmed on January 4 at 09:00 AM."
-    },
-    {
-      doctor: "Dr. Marlo Aquino",
-      status: "Appointment request pending for approval."
-    }
-  ];
-  const links = [
-    {
-      title: "5 Tips for a Healthy Lifestyle",
-      url: "https://healthmatters.nyp.org/habits-for-a-healthy-new-year/",
-      image: require("../assets/images/adaptive-icon.png"),
-    },
-    {
-      title: "The Importance of Regular Checkups",
-      url: "https://mypvhc.com/importance-regular-check-ups/",
-      image: require("../assets/images/adaptive-icon.png"),
-    },
-    {
-      title: "How to Manage Stress Effectively",
-      url: "https://example.com/manage-stress",
-      image: require("../assets/images/adaptive-icon.png"),
-    },
+    { text: "Consult Doctor", image: require("../assets/images/consultdoctor.png"), path: "/Doctors" },
   ];
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.hr} />
-      <Text style={styles.pt1}>Good day, {fullname}!</Text>
-      <View style={styles.pt2}>
-        {menuItems.map((item, index) => (
-          <Link key={index} href={item.path} asChild>
-            <TouchableOpacity style={styles.boxWrapper} activeOpacity={0.7}>
-              <View style={styles.box}>
-                <Image source={item.image} style={styles.boxImage} />
+    <View style={styles.mainContainer}>
+      <StatusBar style="auto" />
+      <ScrollView 
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.hr} />
+        <Text style={styles.pt1}>Good day, {fullname}!</Text>
+
+        {/* Horizontal Scroll for Menu Icons */}
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false} 
+          style={styles.pt2}
+          contentContainerStyle={styles.menuContainer}
+        >
+          {menuItems.map((item, index) => (
+            <Link key={index} href={item.path} asChild>
+              <TouchableOpacity style={styles.boxWrapper} activeOpacity={0.7}>
+                <View style={styles.box}>
+                  <Image source={item.image} style={styles.boxImage} />
+                </View>
+                <Text style={styles.boxText}>{item.text}</Text>
+              </TouchableOpacity>
+            </Link>
+          ))}
+        </ScrollView>
+
+        <Text style={styles.header3txt}>Available Doctors</Text>
+
+        {/* Scrollable Doctor List - Shows all doctors */}
+        <View style={styles.doctorListContainer}>
+          <ScrollView 
+            style={styles.doctorScrollView}
+            nestedScrollEnabled={true}
+            showsVerticalScrollIndicator={true}
+          >
+            {doctors.length > 0 ? (
+              doctors.map((doctor, index) => (
+                <View key={index} style={styles.verticalBox}>
+                  <Text style={styles.maintext}>{doctor.doctor_name || "Doctor Name"}</Text>
+                  <Text style={styles.subtext}>{doctor.specialization || "Specialization"}</Text>
+                </View>
+              ))
+            ) : (
+              <View style={styles.verticalBox}>
+                <Text style={styles.noDoctorsText}>No doctors available at the moment.</Text>
               </View>
-              <Text style={styles.boxText}>{item.text}</Text>
-            </TouchableOpacity>
-          </Link>
-        ))}
-      </View>
-      <View style={styles.header2}>
-        <Text style={styles.header2txt}>Upcoming Appointment</Text>
-        <Text style={styles.header2subtxt}>View all</Text>
-      </View>
-      <View style={styles.hr} />
-      <View style={styles.horizontalBoxWrapper}>
-        {appointments.map((appt, index) => (
-          <View key={index} style={styles.horizontalBox}>
-            <Text style={styles.maintext}>{appt.doctor}</Text>
-            <Text style={styles.subtext}>{appt.status}</Text>
-          </View>
-        ))}
-      </View>
-      <Text style={styles.header3txt}>Health Tips & News</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} pagingEnabled contentContainerStyle={styles.scrollViewContent}>
-        {links.map((item, index) => (
-          <TouchableOpacity key={index} onPress={() => Linking.openURL(item.url)} style={styles.linkbox}>
-            <Image source={item.image} style={styles.linkboxImage} />
-            <View style={styles.linkboxTextWrapper}>
-              <Text style={styles.linkboxTitle}>{item.title}</Text>
-              <Text style={styles.linkboxSource}>Read More →</Text>
-            </View>
-          </TouchableOpacity>
-        ))}
+            )}
+          </ScrollView>
+        </View>
       </ScrollView>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  mainContainer: {
+    flex: 1,
+    paddingTop: 40, // Padding to avoid navigation bar
+  },
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-    padding: 15,
-    paddingBottom: "50%",
+    paddingHorizontal: 15,
+  },
+  contentContainer: {
+    paddingBottom: 30, // Extra padding at bottom
+  },
+  menuContainer: {
+    paddingBottom: 10,
   },
   hr: {
     borderBottomColor: "#00000080",
@@ -99,10 +145,9 @@ const styles = StyleSheet.create({
   pt1: {
     fontSize: 20,
     fontWeight: "700",
+    marginTop: 10,
   },
   pt2: {
-    flexDirection: "row",
-    justifyContent: "space-between",
     marginVertical: 15,
   },
   box: {
@@ -121,7 +166,7 @@ const styles = StyleSheet.create({
   boxWrapper: {
     alignItems: "center",
     width: 130,
-    paddingRight: 25,
+    marginRight: 20,
   },
   boxText: {
     marginTop: 10,
@@ -134,23 +179,21 @@ const styles = StyleSheet.create({
     height: 80,
     resizeMode: "contain",
   },
-  header2: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  header2txt: {
+  header3txt: {
     fontSize: 20,
     fontWeight: "500",
+    marginTop: 15,
+    marginBottom: 10,
   },
-  header2subtxt: {
-    fontSize: 12,
-    color: "#0288D0",
-    fontWeight: "500",
+  doctorListContainer: {
+    flex: 1,
+    minHeight: 200, // Minimum height to ensure scrollability
+    maxHeight: 400, // Maximum height before scrolling
   },
-  horizontalBoxWrapper: {
-    gap: 10,
+  doctorScrollView: {
+    flex: 1,
   },
-  horizontalBox: {
+  verticalBox: {
     backgroundColor: "#FFFFFF",
     padding: 15,
     borderRadius: 16,
@@ -161,6 +204,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 4 },
+    marginBottom: 10,
   },
   maintext: {
     fontSize: 16,
@@ -170,26 +214,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 20,
     fontWeight: "500",
+    color: "#666",
   },
-  header3txt: {
-    fontSize: 20,
+  noDoctorsText: {
+    fontSize: 14,
     fontWeight: "500",
-    marginTop: 15,
+    color: "#888",
+    textAlign: "center",
+    marginTop: 10,
   },
-  scrollViewContent: { paddingHorizontal: 5, gap: 15, paddingBottom: 150, paddingTop: 20 },
-  linkbox: {
-    paddingBottom: 10,
-    width: 220,
-    backgroundColor: "#FFF",
-    borderRadius: 10,
-    overflow: "hidden",
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  linkboxImage: { width: "100%", height: 120, resizeMode: "cover" },
-  linkboxTextWrapper: { padding: 10 },
-  linkboxTitle: { fontSize: 16, fontWeight: "700", color: "#2C3E50" },
-  linkboxSource: { fontSize: 14, color: "#007BFF", marginTop: 5 },
 });
