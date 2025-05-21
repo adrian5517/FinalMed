@@ -1,23 +1,81 @@
-import { View, Text, TouchableOpacity, StyleSheet, Image, ScrollView } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import React, { useEffect, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function Status() {
+export default function StatusScreen({ route }) {
+  const { userId: paramUserId, username: paramUsername } = route?.params || {};
+
+  const [fullname, setFullname] = useState(null);
+  const [userId, setUserId] = useState(paramUserId || null);
+  const [username, setUsername] = useState(paramUsername || null);
+
+  const [doctorSchedules, setDoctorSchedules] = useState([]);
+  const [clinics, setClinics] = useState([]);
+
+  useEffect(() => {
+    async function fetchUserData() {
+      try {
+        let storedUserId = userId;
+        if (!storedUserId) {
+          storedUserId = await AsyncStorage.getItem('userId');
+          setUserId(storedUserId);
+        }
+        if (!storedUserId) return;
+
+        const res = await fetch(`https://nagamedserver.onrender.com/api/user/${storedUserId}`);
+        const data = await res.json();
+        setFullname(data.fullname || 'User');
+        setUsername(data.username || 'Unknown');
+      } catch (e) {
+        console.error('Error fetching user:', e);
+      }
+    }
+    fetchUserData();
+  }, []);
+
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        const doctorRes = await axios.get('https://nagamedserver.onrender.com/api/doctor');
+        setDoctorSchedules(doctorRes.data);
+      } catch (error) {
+        console.error('Failed to fetch doctors:', error);
+      }
+    };
+
+    const fetchClinics = async () => {
+      try {
+        const clinicRes = await axios.get('https://nagamedserver.onrender.com/api/clinic');
+        setClinics(clinicRes.data);
+      } catch (error) {
+        console.error('Failed to fetch clinics:', error);
+      }
+    };
+
+    fetchDoctors();
+    fetchClinics();
+  }, []);
+
   return (
     <ScrollView style={styles.container}>
-
       {/* Patient Info Card */}
       <View style={styles.patientCard}>
         <View style={styles.patientInfo}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>AB</Text>
+            <Text style={styles.avatarText}>
+              {fullname ? fullname.charAt(0) : 'U'}
+              {fullname ? fullname.split(' ')[1]?.charAt(0) : ''}
+            </Text>
           </View>
           <View>
-            <Text style={styles.patientName}>Adrian Boncodin</Text>
-            <Text style={styles.patientId}>Patient ID: 345234</Text>
+            <Text style={styles.patientName}>{fullname || 'Loading...'}</Text>
+            <Text style={styles.patientId}>Patient ID: {userId || 'N/A'}</Text>
             <Text style={styles.headerLogo}>
-                          <Text style={styles.nagaText}>Naga</Text>
-                          <Text style={styles.medText}> Med</Text>
-                        </Text>
+              <Text style={styles.nagaText}>Naga</Text>
+              <Text style={styles.medText}> Med</Text>
+            </Text>
           </View>
         </View>
         <View style={styles.conditionWrapper}>
@@ -56,53 +114,43 @@ export default function Status() {
         </View>
       </View>
 
-      {/* Pharmacy Store */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Pharmacy Store</Text>
-        <Text style={styles.viewMore}>View More</Text>
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pharmacyList}>
-        {[
-          { name: "Mercury Drug", status: "Open", image: require("../assets/images/adaptive-icon.png") },
-          { name: "Southstar Drugs", status: "Closed", image: require("../assets/images/adaptive-icon.png") },
-          { name: "Generics Pharmacy", status: "Closed", image: require("../assets/images/adaptive-icon.png") },
-        ].map((pharmacy, index) => (
-          <View key={index} style={styles.pharmacyCard}>
-            <Image source={pharmacy.image} style={styles.pharmacyImage} />
-            <Text style={styles.pharmacyName}>{pharmacy.name}</Text>
-            <Text style={styles.pharmacyStatus}>{pharmacy.status}</Text>
-          </View>
-        ))}
-      </ScrollView>
-
-      {/* Available Clinics */}
-      <Text style={styles.sectionTitle}>Available Clinics</Text>
-      {[
-        {
-          name: "St. Camillus Medical Clinic",
-          rating: "5.0",
-          address: "Liboton, Naga City",
-          phone: "09123456789",
-        },
-        {
-          name: "Bicolcare Medical Clinic and Laboratory",
-          rating: "4.5",
-          address: "Concepcion Grande, Naga City",
-          phone: "09123456789",
-        },
-      ].map((clinic, index) => (
-        <View key={index} style={styles.clinicCard}>
-          <View style={styles.clinicInfo}>
-            <Text style={styles.clinicName}>{clinic.name}</Text>
-            <Text style={styles.clinicDetails}>
-              {clinic.rating} ★ | {clinic.address} | {clinic.phone}
+      {/* Doctors Section */}
+      <Text style={styles.sectionTitle}>Doctors & Schedules</Text>
+      {doctorSchedules.length === 0 ? (
+        <Text style={styles.loadingText}>Loading doctors...</Text>
+      ) : (
+        doctorSchedules.map((doctor) => (
+          <View key={doctor._id} style={styles.card}>
+            <Text style={styles.cardTitle}>{doctor.doctor_name}</Text>
+            <Text style={styles.cardText}>Specialization: {doctor.specialization}</Text>
+            <Text style={styles.cardText}>Contact: {doctor.contact_info}</Text>
+            <Text style={styles.cardText}>
+              Availability: {doctor.availability.map(avail => Object.values(avail).join(' ')).join(', ')}
             </Text>
+            <Text style={styles.cardText}>License No: {doctor.license_number}</Text>
           </View>
-          <TouchableOpacity>
-            <Ionicons name="arrow-forward" size={24} color="#007bff" />
-          </TouchableOpacity>
-        </View>
-      ))}
+        ))
+      )}
+
+      {/* Clinics Section */}
+      <Text style={styles.sectionTitle}>Available Clinics</Text>
+      {clinics.length === 0 ? (
+        <Text style={styles.loadingText}>Loading clinics...</Text>
+      ) : (
+        clinics.map((clinic) => (
+          <View key={clinic._id} style={styles.clinicCard}>
+            <View style={styles.clinicInfo}>
+              <Text style={styles.clinicName}>{clinic.clinic_name}</Text>
+              <Text style={styles.clinicDetails}>
+                {clinic.address} | {clinic.contact}
+              </Text>
+            </View>
+            <TouchableOpacity>
+              <Ionicons name="arrow-forward" size={24} color="#007bff" />
+            </TouchableOpacity>
+          </View>
+        ))
+      )}
     </ScrollView>
   );
 }
@@ -113,42 +161,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#f9f9f9",
     paddingHorizontal: 16,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginVertical: 16,
-  },
-  headerText: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#007bff",
-  },
-  med: {
-    color: "#28a745",
-  },
-  nagaText: {
-    color: "#0072CE", // Blue color for "Naga"
-  },
-  medText: {
-    color: "#4CAF50", // Green color for "Med"
-  },
+  nagaText: { color: "#0072CE" },
+  medText: { color: "#4CAF50" },
   headerLogo: {
-    position: "absolute", // Position it absolutely
-    top: -5, // Distance from the top of the card
-    right: -140, // Distance from the right of the card
+    position: "absolute",
+    top: -5,
+    right: -140,
     fontSize: 16,
     fontWeight: "bold",
   },
-  
   patientCard: {
     backgroundColor: "#fff",
     borderRadius: 8,
     padding: 16,
     marginBottom: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
     elevation: 3,
   },
   patientInfo: {
@@ -210,16 +236,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   extendButton: {
-    position: "absolute",
-    right: 16,
-    bottom: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    alignSelf: "flex-end",
+    backgroundColor: "#E0F2F1",
+    padding: 8,
+    borderRadius: 5,
   },
   extendButtonText: {
     color: "#1170B3",
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "bold",
   },
   appointmentDetails: {
@@ -227,9 +251,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 16,
     marginBottom: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
     elevation: 3,
   },
   detailItem: {
@@ -242,61 +263,40 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     color: "#666",
   },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
-  },
-  viewMore: {
-    fontSize: 14,
-    color: "#007bff",
-  },
-  pharmacyList: {
-    marginBottom: 16,
-  },
-  pharmacyCard: {
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    padding: 16,
-    marginRight: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 3,
-    width: 150,
-    alignItems: "center",
-  },
-  pharmacyImage: {
-    width: 80,
-    height: 80,
     marginBottom: 8,
   },
-  pharmacyName: {
+  loadingText: {
     fontSize: 14,
-    fontWeight: "bold",
-    textAlign: "center",
+    color: "#888",
+    marginBottom: 16,
   },
-  pharmacyStatus: {
-    fontSize: 12,
-    color: "#666",
+  card: {
+    backgroundColor: "#fff",
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 10,
+    elevation: 2,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  cardText: {
+    fontSize: 14,
+    color: "#555",
   },
   clinicCard: {
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
     flexDirection: "row",
     justifyContent: "space-between",
+    backgroundColor: "#fff",
+    padding: 16,
+    marginBottom: 10,
+    borderRadius: 8,
+    elevation: 2,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 3,
   },
   clinicInfo: {
     flex: 1,
@@ -306,7 +306,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   clinicDetails: {
-    fontSize: 12,
-    color: "#666",
+    fontSize: 14,
+    color: "#555",
   },
 });
