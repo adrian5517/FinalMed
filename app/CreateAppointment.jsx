@@ -13,7 +13,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import DropDownPicker from 'react-native-dropdown-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import axios from 'axios';
@@ -24,6 +24,9 @@ const generateObjectId = () => new mongoose.Types.ObjectId().toString();
 
 const CreateAppointment = () => {
   const navigation = useNavigation();
+  const route = useRoute();
+  const { doctorId, clinicId } = route.params || {};
+
   const [name, setName] = useState('');
   const [clinicOpen, setClinicOpen] = useState(false);
   const [doctorOpen, setDoctorOpen] = useState(false);
@@ -38,44 +41,70 @@ const CreateAppointment = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Fetch clinics on mount
   useEffect(() => {
     fetchClinics();
   }, []);
 
+  // Fetch doctors when selectedClinic changes
   useEffect(() => {
     if (selectedClinic) {
       fetchDoctors(selectedClinic);
     } else {
       setDoctors([]);
+      setSelectedDoctor(null);
     }
   }, [selectedClinic]);
 
+  // Fetch clinics and preselect if param exists
   const fetchClinics = async () => {
     try {
       const response = await axios.get('https://nagamedserver.onrender.com/api/clinic');
-      setClinics(response.data.map((clinic) => ({
+      const clinicsData = response.data.map(clinic => ({
         label: clinic.clinic_name,
         value: clinic._id,
-      })));
+      }));
+      setClinics(clinicsData);
+
+      if (clinicsData.length > 0) {
+        if (clinicId && clinicsData.some(c => c.value === clinicId)) {
+          setSelectedClinic(clinicId);
+        } else {
+          setSelectedClinic(clinicsData[0].value);
+        }
+      }
     } catch (error) {
       console.error('Error fetching clinics:', error.message);
       setErrorMessage('Failed to load clinics. Please try again.');
     }
   };
 
+  // Fetch doctors for selected clinic and preselect if param exists
   const fetchDoctors = async (clinicId) => {
     try {
       const response = await axios.get(`https://nagamedserver.onrender.com/api/clinic/${clinicId}/doctor`);
-      setDoctors(response.data.map((doctor) => ({
+      const doctorsData = response.data.map(doctor => ({
         label: doctor.doctor_name,
         value: doctor._id,
-      })));
+      }));
+      setDoctors(doctorsData);
+
+      if (doctorsData.length > 0) {
+        if (doctorId && doctorsData.some(d => d.value === doctorId)) {
+          setSelectedDoctor(doctorId);
+        } else {
+          setSelectedDoctor(doctorsData[0].value);
+        }
+      } else {
+        setSelectedDoctor(null);
+      }
     } catch (error) {
       console.error('Error fetching doctors:', error.message);
       setErrorMessage('Failed to load doctors. Please try again.');
     }
   };
 
+  // Date picker handler
   const handleDateChange = (event, selectedDate) => {
     setShowDatePicker(false);
     if (selectedDate) {
@@ -83,6 +112,7 @@ const CreateAppointment = () => {
     }
   };
 
+  // Time picker handler
   const handleTimeChange = (event, selectedTime) => {
     setShowTimePicker(false);
     if (selectedTime) {
@@ -90,48 +120,55 @@ const CreateAppointment = () => {
     }
   };
 
-  const generateObjectId = () => new mongoose.Types.ObjectId().toString();
-
+  // Book appointment
   const handleBookAppointment = async () => {
+    if (!name.trim()) {
+      Alert.alert('Validation Error', 'Please enter your name.');
+      return;
+    }
+    if (!selectedClinic || !selectedDoctor) {
+      Alert.alert('Missing Fields', 'Please select both a clinic and a doctor.');
+      return;
+    }
+
     try {
-      if (!selectedClinic || !selectedDoctor) {
-        Alert.alert('Missing Fields', 'Please select both a clinic and a doctor.');
-        return;
-      }
-  
-      // If patient info is required and no info found, generate a unique patient ID
+      setLoading(true);
+
       const patientInfo = await AsyncStorage.getItem('userInfo');
-      const patientId = patientInfo ? JSON.parse(patientInfo).id : generateObjectId(); // Generate new ObjectId if no userInfo
-  
-      // Combine date & time into one ISO string
+      const patientId = patientInfo ? JSON.parse(patientInfo).id : generateObjectId();
+
+      // Combine date & time properly
       const combinedDateTime = new Date(appointmentDate);
       combinedDateTime.setHours(appointmentTime.getHours());
       combinedDateTime.setMinutes(appointmentTime.getMinutes());
-  
+      combinedDateTime.setSeconds(0);
+      combinedDateTime.setMilliseconds(0);
+
       const appointmentData = {
         doctor_id: selectedDoctor,
         clinic_id: selectedClinic,
-        patient_id: patientId, // Use valid ObjectId or fallback value
+        patient_id: patientId,
+        patient_name: name.trim(),
         appointment_date_time: combinedDateTime.toISOString(),
         status: 'Pending',
       };
-  
+
       console.log('Sending appointment data:', appointmentData);
-  
-      const response = await axios.post(
-        'https://nagamedserver.onrender.com/api/appointment',
-        appointmentData
-      );
-  
-      console.log('Appointment booked:', response.data);
+
+      const response = await axios.post('https://nagamedserver.onrender.com/api/appointment', appointmentData);
+
+      setLoading(false);
       Alert.alert('Success', 'Appointment booked successfully!');
       resetForm();
+      navigation.goBack();
     } catch (error) {
+      setLoading(false);
       console.error('Error booking appointment:', error.response?.data || error.message);
       Alert.alert('Booking Failed', error.response?.data?.message || 'Error booking appointment.');
     }
   };
 
+  // Reset form inputs
   const resetForm = () => {
     setName('');
     setSelectedClinic(null);
@@ -147,7 +184,7 @@ const CreateAppointment = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <Text style={styles.title}>Book an Appointment</Text>
 
           <View style={styles.inputContainer}>
@@ -157,6 +194,8 @@ const CreateAppointment = () => {
               placeholder="Enter your name"
               value={name}
               onChangeText={setName}
+              returnKeyType="done"
+              onSubmitEditing={Keyboard.dismiss}
             />
           </View>
 
@@ -205,6 +244,7 @@ const CreateAppointment = () => {
               dropDownDirection="DOWN"
               style={styles.dropdown}
               dropDownContainerStyle={styles.dropdownContainer}
+              onOpen={() => setDoctorOpen(false)}
             />
           </View>
 
@@ -223,6 +263,7 @@ const CreateAppointment = () => {
               dropDownDirection="DOWN"
               style={styles.dropdown}
               dropDownContainerStyle={styles.dropdownContainer}
+              onOpen={() => setClinicOpen(false)}
             />
           </View>
 
@@ -232,7 +273,7 @@ const CreateAppointment = () => {
             <ActivityIndicator size="large" color="#007AFF" />
           ) : (
             <TouchableOpacity style={styles.submitButton} onPress={handleBookAppointment}>
-              <Text style={styles.buttonText}>Confirm Appointment</Text>
+              <Text style={styles.submitButtonText}>Book Appointment</Text>
             </TouchableOpacity>
           )}
         </ScrollView>
@@ -242,74 +283,47 @@ const CreateAppointment = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-    color: '#333',
-  },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
-    marginBottom: 8,
-    fontWeight: '500',
-    color: '#333',
-  },
+  container: { flex: 1, backgroundColor: '#fff' },
+  scrollContent: { padding: 20, paddingBottom: 50 },
+  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
+  inputContainer: { marginBottom: 15 },
+  label: { fontSize: 16, marginBottom: 5 },
   input: {
-    height: 40,
-    borderColor: '#ccc',
     borderWidth: 1,
-    borderRadius: 5,
-    paddingLeft: 10,
-    fontSize: 16,
+    borderColor: '#ccc',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
   },
   dateInput: {
-    height: 40,
-    borderColor: '#ccc',
     borderWidth: 1,
-    borderRadius: 5,
+    borderColor: '#ccc',
+    padding: 12,
+    borderRadius: 6,
     justifyContent: 'center',
-    paddingLeft: 10,
-    fontSize: 16,
   },
   dropdown: {
-    height: 40,
     borderColor: '#ccc',
-    borderWidth: 1,
-    borderRadius: 5,
-    backgroundColor: '#fff',
   },
   dropdownContainer: {
     borderColor: '#ccc',
-    borderWidth: 1,
-    borderRadius: 5,
-  },
-  errorText: {
-    color: 'red',
-    fontSize: 14,
-    marginBottom: 10,
   },
   submitButton: {
     backgroundColor: '#007AFF',
     paddingVertical: 15,
-    borderRadius: 5,
+    borderRadius: 6,
     alignItems: 'center',
+    marginTop: 20,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+  submitButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  errorText: {
+    color: 'red',
+    marginBottom: 10,
+    textAlign: 'center',
   },
 });
 
