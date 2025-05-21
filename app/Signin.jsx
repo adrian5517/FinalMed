@@ -17,8 +17,18 @@ export default function SignIn() {
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [_id,setUserId] = useState("");
   const router = useRouter();
 
+
+  const fetchUserId = async () => {
+  const id = await AsyncStorage.getItem("userId");
+  if (id) {
+    console.log("User ID:", id);
+  } else {
+    console.warn("User ID not found.");
+  }
+};
   const handleSignIn = async () => {
     console.log("Signing in with:", email, password);
     setLoading(true);
@@ -39,9 +49,16 @@ export default function SignIn() {
         if (data.token) {
           await AsyncStorage.setItem("authToken", data.token);
         }
-        if (data.user?.fullname) {  // Ensure that fullname exists
+        if (data.user?.fullname) {
           await AsyncStorage.setItem("fullName", data.user.fullname);
         }
+        if (data.user?._id) {  // Adjust based on your backend field name
+          await AsyncStorage.setItem("userId", data.user._id);
+          console.log("User ID saved:", data.user._id);
+        } else {
+          console.warn("User ID missing in response");
+        }
+
   
         // Navigate to the Home screen (adjust navigation for React Navigation or Next.js)
         router.push("/Home");  // For Next.js (if you're using it), this works fine
