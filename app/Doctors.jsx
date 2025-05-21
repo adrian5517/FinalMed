@@ -6,8 +6,10 @@ import {
   View,
   FlatList,
   SafeAreaView,
+  TouchableOpacity,
+  Image,
 } from "react-native";
-import DoctorCard from "../components/DoctorCard";
+import { useRouter } from "expo-router";
 import SearchBar from "../components/SearchBar";
 
 export default function DoctorsPage() {
@@ -16,44 +18,26 @@ export default function DoctorsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const router = useRouter();
+
   useEffect(() => {
     const fetchDoctors = async () => {
       try {
-        const response = await fetch(
-          "https://nagamedserver.onrender.com/api/doctor"
-        );
+        const response = await fetch("https://nagamedserver.onrender.com/api/doctor");
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`Failed to fetch. Status: ${response.status}`);
 
         const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
+        if (!contentType?.includes("application/json")) {
           const text = await response.text();
-          throw new Error(`Received non-JSON response: ${text}`);
+          throw new Error(`Expected JSON but got: ${text}`);
         }
 
         const data = await response.json();
-
-        let doctorsArray = [];
-
-        if (Array.isArray(data)) {
-          doctorsArray = data;
-        } else if (typeof data === "object" && data !== null) {
-          if (Array.isArray(data.doctors)) {
-            doctorsArray = data.doctors;
-          } else if (Array.isArray(data.data)) {
-            doctorsArray = data.data;
-          } else {
-            doctorsArray = Object.values(data).filter(
-              (item) => item && typeof item === "object" && !Array.isArray(item)
-            );
-          }
-        }
-
-        setDoctors(doctorsArray);
+        const extractedDoctors = extractDoctors(data);
+        setDoctors(extractedDoctors);
       } catch (err) {
-        console.error("Error fetching doctors:", err);
+        console.error("Fetch error:", err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -63,28 +47,46 @@ export default function DoctorsPage() {
     fetchDoctors();
   }, []);
 
-  const filteredDoctors = doctors.filter((doctor) => {
-    if (!doctor || typeof doctor !== "object") return false;
-    return (
-      (doctor.doctor_name?.toLowerCase() || "").includes(
-        searchQuery.toLowerCase()
-      ) ||
-      (doctor.specialization?.toLowerCase() || "").includes(
-        searchQuery.toLowerCase()
-      )
-    );
-  });
+  const extractDoctors = (data) => {
+    if (Array.isArray(data)) return data;
+    if (typeof data === "object" && data !== null) {
+      if (Array.isArray(data.doctors)) return data.doctors;
+      if (Array.isArray(data.data)) return data.data;
+      return Object.values(data).filter((item) => item && typeof item === "object");
+    }
+    return [];
+  };
 
   const formatAvailability = (availability) => {
-    if (Array.isArray(availability) && availability[0] && Array.isArray(availability[0])) {
-      return availability[0].join("");
+    if (Array.isArray(availability) && Array.isArray(availability[0])) {
+      return availability[0].join(", ");
     }
     return "Not available";
   };
 
+  const filteredDoctors = doctors.filter((doctor) => {
+    const name = doctor?.doctor_name?.toLowerCase() || "";
+    const specialization = doctor?.specialization?.toLowerCase() || "";
+    return (
+      name.includes(searchQuery.toLowerCase()) ||
+      specialization.includes(searchQuery.toLowerCase())
+    );
+  });
+
+  const handleSelectDoctor = (doctor) => {
+    router.push({
+      pathname: "/CreateAppointment",
+      params: {
+        doctorId: doctor._id,
+        doctorName: doctor.doctor_name,
+        clinicId: doctor.clinic_id,
+      },
+    });
+  };
+
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#22577A" />
       </View>
     );
@@ -92,8 +94,8 @@ export default function DoctorsPage() {
 
   if (error) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Error loading doctors: {error}</Text>
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorText}>Error: {error}</Text>
       </View>
     );
   }
@@ -102,30 +104,40 @@ export default function DoctorsPage() {
     <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Find your doctor</Text>
 
-      {/* Search Bar */}
       <SearchBar
         placeholder="Search Doctor, Health issues"
-        onChangeText={(text) => setSearchQuery(text)}
+        onChangeText={setSearchQuery}
         value={searchQuery}
       />
 
-      {/* Horizontally scrollable list of doctors */}
       <Text style={styles.subtitle}>Available Doctors</Text>
       <FlatList
         data={filteredDoctors}
-        keyExtractor={(item) => item._id || Math.random().toString()}
+        keyExtractor={(item) => item._id?.toString() || Math.random().toString()}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.horizontalDoctorsList}
         renderItem={({ item }) => (
-          <DoctorCard
-            name={item?.doctor_name || "Unknown Doctor"}
-            specialization={item?.specialization || "General Practitioner"}
-            contact={item?.contact_info || "Not available"}
-            location={item?.clinic_id || "Naga City"}
-            availability={formatAvailability(item?.availability)}
-            image={item?.image || require("../assets/images/adaptive-icon.png")}
-          />
+          <View style={[styles.doctorCard, { borderColor: '#22577A', borderWidth: 2 } : null]}>
+            <Image
+              source={
+                item.image
+                  ? { uri: item.image }
+                  : require("../assets/images/bookappointments.png")
+              }
+              style={styles.doctorImage}
+            />
+            <Text style={styles.doctorName}>{item.doctor_name || "Unknown Doctor"}</Text>
+            <Text style={styles.doctorSpecialty}>
+              {item.specialization || "General Practitioner"}
+            </Text>
+            <Text style={styles.doctorAvailability}>
+              {formatAvailability(item.availability)}
+            </Text>
+            <TouchableOpacity style = {styles.button}  onPress={() => handleSelectDoctor(item)}>
+              <Text style={styles.buttonText}>Book</Text>
+            </TouchableOpacity>
+          </View>
         )}
       />
     </SafeAreaView>
@@ -139,20 +151,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 40,
   },
-  loadingContainer: {
+  centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
   },
   errorText: {
     color: "#E63946",
     textAlign: "center",
+    fontSize: 16,
   },
   title: {
     fontSize: 24,
@@ -168,6 +175,42 @@ const styles = StyleSheet.create({
     color: "#22577A",
   },
   horizontalDoctorsList: {
-    paddingBottom: 240,
+    paddingBottom: 100,
   },
-});
+   doctorCard: { width: 140,height:250, backgroundColor: '#fff', borderRadius: 15, padding: 15, marginRight: 15, alignItems: 'center'},
+   doctorImage: { width: 50, height: 50, borderRadius: 25, marginRight: 15,boarderWidth:5, borderColor:'#22577A' },
+  doctorImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginBottom: 10,
+  },
+  doctorName: {
+    fontWeight: "bold",
+    fontSize: 16,
+    color: "#22577A",
+    textAlign: "center",
+  },
+  doctorSpecialty: {
+    fontSize: 14,
+    color: "#777",
+    textAlign: "center",
+  },
+  doctorAvailability: {
+    marginTop: 5,
+    fontSize: 12,
+    color: "#57CC99",
+    textAlign: "center",
+  },
+  button: {
+  marginTop: 10,
+  paddingVertical: 6,
+  paddingHorizontal: 12,
+  backgroundColor: "#38A3A5",
+  borderRadius: 8,
+},
+buttonText: {
+  color: "#fff",
+  fontWeight: "bold",
+  textAlign: "center",
+},});
