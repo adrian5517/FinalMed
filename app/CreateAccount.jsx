@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { FontAwesome } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function CreateAccount() {
   const [fullname, setFullname] = useState(""); // use "fullname" to match backend
@@ -38,6 +39,17 @@ export default function CreateAccount() {
       return;
     }
 
+    if (password.length < 8) {
+      setErrorMessage("Password must be at least 8 characters long");
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setErrorMessage("Invalid email format");
+      return;
+    }
+
     setErrorMessage("");
     setLoading(true);
 
@@ -47,28 +59,41 @@ export default function CreateAccount() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ fullname, email, password }),
+        body: JSON.stringify({
+          fullname: fullname.trim(),
+          email: email.trim().toLowerCase(),
+          password: password.trim()
+        }),
+        credentials: 'include' // This is important for handling cookies
       });
 
-      const text = await response.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        console.error("JSON parse error:", e);
-        setErrorMessage("Unexpected server response.");
-        setLoading(false);
-        return;
-      }
+      const data = await response.json();
+      console.log('Signup response:', data);
 
       if (response.ok) {
+        if (data.user) {
+          // Store user data
+          await AsyncStorage.setItem("userId", data.user._id);
+          await AsyncStorage.setItem("fullName", data.user.fullname);
+          await AsyncStorage.setItem("userEmail", data.user.email);
+          if (data.user.profilePicture) {
+            await AsyncStorage.setItem("profilePicture", data.user.profilePicture);
+          }
+        }
         setRegistered(true);
       } else {
-        setErrorMessage(data.message || "Failed to create account.");
+        // Handle specific error messages from the server
+        if (data.message === "User already exists") {
+          setErrorMessage("An account with this email already exists");
+        } else if (data.message === "Invalid email format") {
+          setErrorMessage("Please enter a valid email address");
+        } else {
+          setErrorMessage(data.message || "Failed to create account. Please try again.");
+        }
       }
     } catch (error) {
-      console.error("Network error:", error);
-      setErrorMessage("Network error. Please try again.");
+      console.error("Signup error:", error);
+      setErrorMessage("Network error. Please check your internet connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -103,7 +128,7 @@ export default function CreateAccount() {
                 <View style={styles.inputWrapper}>
                   <TextInput
                     style={styles.input}
-                    placeholder="Enter your fullname"
+                    placeholder="First Last"
                     value={fullname}
                     onChangeText={setFullname}
                     autoCapitalize="words"

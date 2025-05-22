@@ -40,34 +40,35 @@ export default function SignIn() {
       return;
     }
 
-    console.log("Signing in with:", email, password);
     setLoading(true);
     setErrorMessage("");
   
     try {
-      const response = await axios.post("https://nagamedserver.onrender.com/api/auth/signin", {
-        email: email.trim(),
-        password: password.trim()
-      });
+      const response = await axios.post(
+        "https://nagamedserver.onrender.com/api/auth/signin",
+        {
+          email: email.trim().toLowerCase(),
+          password: password.trim()
+        },
+        {
+          withCredentials: true, // Important for handling cookies
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
   
       const data = response.data;
   
-      if (response.status === 200) {
+      if (response.status === 200 && data.user) {
         console.log("Login Successful:", data);
   
-        // Store the token and user data in AsyncStorage
-        if (data.token) {
-          await AsyncStorage.setItem("authToken", data.token);
-        }
-        if (data.user?.fullname) {
-          await AsyncStorage.setItem("fullName", data.user.fullname);
-        }
-        if (data.user?._id) {
-          await AsyncStorage.setItem("userId", data.user._id);
-          console.log("User ID saved:", data.user._id);
-        }
-        if (data.user?.email) {
-          await AsyncStorage.setItem("userEmail", data.user.email);
+        // Store the user data in AsyncStorage
+        await AsyncStorage.setItem("userId", data.user._id);
+        await AsyncStorage.setItem("fullName", data.user.fullname);
+        await AsyncStorage.setItem("userEmail", data.user.email);
+        if (data.user.profilePicture) {
+          await AsyncStorage.setItem("profilePicture", data.user.profilePicture);
         }
   
         // Clear form fields
@@ -77,7 +78,7 @@ export default function SignIn() {
         // Navigate to Home
         router.push("/Home");
       } else {
-        setErrorMessage(data.message || "Invalid email or password.");
+        setErrorMessage("Invalid email or password");
       }
     } catch (error) {
       console.error("Error logging in:", error);
@@ -86,6 +87,8 @@ export default function SignIn() {
         // that falls out of the range of 2xx
         if (error.response.status === 401) {
           setErrorMessage("Invalid email or password");
+        } else if (error.response.status === 400) {
+          setErrorMessage(error.response.data.message || "Please check your credentials");
         } else {
           setErrorMessage(error.response.data.message || "An error occurred during sign in");
         }
