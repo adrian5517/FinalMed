@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
 } from "react-native";
 import COLORS from "../constant/colors";
-import Signup from "./CreateAccount";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter, Stack } from "expo-router";
 import { FontAwesome, FontAwesome5 } from "@expo/vector-icons";
@@ -36,43 +35,67 @@ export default function SignIn() {
   };
 
   const handleSignIn = async () => {
+    if (!email.trim() || !password.trim()) {
+      setErrorMessage("Please enter both email and password");
+      return;
+    }
+
     console.log("Signing in with:", email, password);
     setLoading(true);
+    setErrorMessage("");
   
     try {
       const response = await axios.post("https://nagamedserver.onrender.com/api/auth/signin", {
-        email,
-        password
+        email: email.trim(),
+        password: password.trim()
       });
   
       const data = response.data;
   
       if (response.status === 200) {
         console.log("Login Successful:", data);
-        setErrorMessage(""); // Clear any previous error messages
   
-        // Store the token and user full name in AsyncStorage
+        // Store the token and user data in AsyncStorage
         if (data.token) {
           await AsyncStorage.setItem("authToken", data.token);
         }
         if (data.user?.fullname) {
           await AsyncStorage.setItem("fullName", data.user.fullname);
         }
-        if (data.user?._id) {  // Adjust based on your backend field name
+        if (data.user?._id) {
           await AsyncStorage.setItem("userId", data.user._id);
           console.log("User ID saved:", data.user._id);
-        } else {
-          console.warn("User ID missing in response");
+        }
+        if (data.user?.email) {
+          await AsyncStorage.setItem("userEmail", data.user.email);
         }
   
-        // Navigate to the Home screen
+        // Clear form fields
+        setEmail("");
+        setPassword("");
+        
+        // Navigate to Home
         router.push("/Home");
       } else {
         setErrorMessage(data.message || "Invalid email or password.");
       }
     } catch (error) {
       console.error("Error logging in:", error);
-      setErrorMessage("Network error. Please try again.");
+      if (error.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        if (error.response.status === 401) {
+          setErrorMessage("Invalid email or password");
+        } else {
+          setErrorMessage(error.response.data.message || "An error occurred during sign in");
+        }
+      } else if (error.request) {
+        // The request was made but no response was received
+        setErrorMessage("No response from server. Please check your internet connection.");
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        setErrorMessage("An unexpected error occurred. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -221,12 +244,10 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     top:-10,
     color: "#1170B3",
-    
   },
   subtitle: {
     fontSize: 16,
     color: "#666",
-    
     marginTop: -12,
   },
   inputContainer: {
