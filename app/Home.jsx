@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from "react-native";
-import { Link } from "expo-router";
+import { Link, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { StatusBar } from "expo-status-bar";
@@ -8,6 +8,7 @@ export default function Home() {
   const [fullname, setFullname] = useState("User");
   const [doctors, setDoctors] = useState([]);
   const [news, setNews] = useState([]);
+  const router = useRouter();
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -49,22 +50,22 @@ export default function Home() {
     
     const fetchDoctors = async () => {
       try {
-        const response = await fetch("https://nagamedserver.onrender.com/api/doctor");
+        const response = await fetch("https://nagamedserver.onrender.com/api/doctorauth/");
 
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error("Server responded with:", errorText);
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-          const text = await response.text();
-          throw new Error(`Received non-JSON response: ${text.substring(0, 100)}...`);
-        }
-
         const data = await response.json();
-        setDoctors(data);
+        console.log("Doctors data:", data); // Log the full response
+
+        if (data.success && Array.isArray(data.data)) {
+          setDoctors(data.data);
+          console.log("Number of doctors:", data.data.length);
+        } else {
+          console.error("Invalid data format received:", data);
+          setDoctors([]);
+        }
       } catch (error) {
         console.error("Error fetching doctors:", error);
         setDoctors([]);
@@ -81,6 +82,10 @@ export default function Home() {
     { text: "Health Records", image: require("../assets/images/healthrecords.png"), path: "/Status" },
     { text: "Consult Doctor", image: require("../assets/images/consultdoctor.png"), path: "/Doctors" },
   ];
+
+  const getProfilePicture = (email) => {
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`;
+  };
 
   return (
     <View style={styles.mainContainer}>
@@ -112,51 +117,72 @@ export default function Home() {
           ))}
         </ScrollView>
 
-        <Text style={styles.header3txt}>Available Doctors</Text>
+        <View style={styles.doctorsSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.header3txt}>Available Doctors</Text>
+            {doctors.length > 2 && (
+              <TouchableOpacity 
+                onPress={() => router.push('/Doctors')}
+                style={styles.seeAllButton}
+              >
+                <Text style={styles.seeAllText}>See All</Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
-        {/* Scrollable Doctor List */}
-        <View style={styles.doctorListContainer}>
-          {doctors.length > 0 ? (
-            doctors.map((doctor, index) => (
-              <View key={index} style={styles.verticalBox}>
-                <View style={styles.doctorInfoContainer}>
-                  <View style={styles.doctorImageContainer}>
-                    <Image 
-                      source={{ uri: doctor.profile_image || 'https://via.placeholder.com/100' }} 
-                      style={styles.doctorImage}
-                    />
-                  </View>
-                  <View style={styles.doctorDetails}>
-                    <Text style={styles.maintext}>{doctor.doctor_name || "Doctor Name"}</Text>
-                    <Text style={styles.subtext}>{doctor.specialization || "Specialization"}</Text>
-                    <View style={styles.doctorStats}>
-                      <View style={styles.statItem}>
-                        <Text style={styles.statValue}>4.8</Text>
-                        <Text style={styles.statLabel}>Rating</Text>
-                      </View>
-                      <View style={styles.statDivider} />
-                      <View style={styles.statItem}>
-                        <Text style={styles.statValue}>5+</Text>
-                        <Text style={styles.statLabel}>Years</Text>
-                      </View>
-                      <View style={styles.statDivider} />
-                      <View style={styles.statItem}>
-                        <Text style={styles.statValue}>100+</Text>
-                        <Text style={styles.statLabel}>Patients</Text>
+          <View style={styles.doctorListContainer}>
+            {doctors.length > 0 ? (
+              doctors.slice(0, 2).map((doctor) => (
+                <View key={doctor._id} style={styles.doctorCard}>
+                  <View style={styles.doctorInfoContainer}>
+                    <View style={styles.doctorImageContainer}>
+                      <Image 
+                        source={{ uri: getProfilePicture(doctor.email) }} 
+                        style={styles.doctorImage}
+                      />
+                    </View>
+                    <View style={styles.doctorDetails}>
+                      <Text style={styles.doctorName}>{doctor.fullname}</Text>
+                      <Text style={styles.doctorSpecialty}>{doctor.specialization}</Text>
+                      <View style={styles.doctorStats}>
+                        <View style={styles.statItem}>
+                          <Text style={styles.statValue}>4.8</Text>
+                          <Text style={styles.statLabel}>Rating</Text>
+                        </View>
+                        <View style={styles.statDivider} />
+                        <View style={styles.statItem}>
+                          <Text style={styles.statValue}>5+</Text>
+                          <Text style={styles.statLabel}>Years</Text>
+                        </View>
+                        <View style={styles.statDivider} />
+                        <View style={styles.statItem}>
+                          <Text style={styles.statValue}>100+</Text>
+                          <Text style={styles.statLabel}>Patients</Text>
+                        </View>
                       </View>
                     </View>
                   </View>
+                  <TouchableOpacity 
+                    style={styles.bookButton}
+                    onPress={() => router.push({
+                      pathname: "/CreateAppointment",
+                      params: {
+                        doctorId: doctor._id,
+                        doctorName: doctor.fullname,
+                        specialization: doctor.specialization,
+                      },
+                    })}
+                  >
+                    <Text style={styles.bookButtonText}>Book Appointment</Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={styles.bookButton}>
-                  <Text style={styles.bookButtonText}>Book Appointment</Text>
-                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={styles.noDoctorsContainer}>
+                <Text style={styles.noDoctorsText}>No doctors available at the moment.</Text>
               </View>
-            ))
-          ) : (
-            <View style={styles.verticalBox}>
-              <Text style={styles.noDoctorsText}>No doctors available at the moment.</Text>
-            </View>
-          )}
+            )}
+          </View>
         </View>
 
         {/* Health News Section */}
@@ -286,32 +312,30 @@ const styles = StyleSheet.create({
   },
   doctorListContainer: {
     paddingHorizontal: 15,
-    marginBottom: 25,
   },
-  verticalBox: {
-    backgroundColor: "#FFFFFF",
-    padding: 18,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#00000010",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 4 },
+  doctorCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   doctorInfoContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 15,
+    marginBottom: 12,
   },
   doctorImageContainer: {
     width: 80,
     height: 80,
     borderRadius: 40,
     overflow: 'hidden',
-    marginRight: 15,
+    marginRight: 16,
     borderWidth: 2,
     borderColor: '#A7EC80',
   },
@@ -323,23 +347,20 @@ const styles = StyleSheet.create({
   doctorDetails: {
     flex: 1,
   },
-  maintext: {
+  doctorName: {
     fontSize: 18,
-    fontWeight: "600",
-    color: "#2D3748",
+    fontWeight: '600',
+    color: '#2D3748',
     marginBottom: 4,
   },
-  subtext: {
+  doctorSpecialty: {
     fontSize: 14,
-    lineHeight: 20,
-    fontWeight: "500",
-    color: "#718096",
+    color: '#718096',
     marginBottom: 8,
   },
   doctorStats: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
   },
   statItem: {
     flex: 1,
@@ -364,22 +385,24 @@ const styles = StyleSheet.create({
   bookButton: {
     backgroundColor: '#A7EC80',
     paddingVertical: 12,
-    paddingHorizontal: 20,
     borderRadius: 12,
     alignItems: 'center',
-    marginTop: 5,
   },
   bookButtonText: {
     color: '#2D3748',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
   },
+  noDoctorsContainer: {
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    alignItems: 'center',
+  },
   noDoctorsText: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: "#718096",
-    textAlign: "center",
-    marginTop: 10,
+    fontSize: 16,
+    color: '#718096',
+    textAlign: 'center',
   },
   section: {
     padding: 18,
@@ -398,7 +421,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 18,
+    paddingHorizontal: 15,
+    marginBottom: 15,
   },
   sectionTitle: {
     fontSize: 22,
@@ -504,5 +528,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 15,
     lineHeight: 22,
+  },
+  seeAllButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: '#F0F7FF',
+    borderRadius: 12,
+  },
+  seeAllText: {
+    color: '#4A90E2',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  doctorsSection: {
+    marginBottom: 25,
   },
 });

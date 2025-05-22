@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   TouchableOpacity,
   Image,
+  RefreshControl,
 } from "react-native";
 import { useRouter } from "expo-router";
 import SearchBar from "../components/SearchBar";
@@ -17,59 +18,62 @@ export default function DoctorsPage() {
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
+  const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    const fetchDoctors = async () => {
-      try {
-        const response = await fetch("https://nagamedserver.onrender.com/api/doctor");
+  const getProfilePicture = (email) => {
+    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`;
+  };
 
-        if (!response.ok) throw new Error(`Failed to fetch. Status: ${response.status}`);
+  const fetchDoctors = async () => {
+    try {
+      const response = await fetch("https://nagamedserver.onrender.com/api/doctorauth/");
 
-        const contentType = response.headers.get("content-type");
-        if (!contentType?.includes("application/json")) {
-          const text = await response.text();
-          throw new Error(`Expected JSON but got: ${text}`);
-        }
-
-        const data = await response.json();
-        const extractedDoctors = extractDoctors(data);
-        setDoctors(extractedDoctors);
-      } catch (err) {
-        console.error("Fetch error:", err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    };
 
+      const data = await response.json();
+      console.log("Doctors data:", data); // Log the full response
+
+      if (data.success && Array.isArray(data.data)) {
+        setDoctors(data.data);
+        console.log("Number of doctors:", data.data.length);
+        setError(null);
+      } else {
+        console.error("Invalid data format received:", data);
+        setDoctors([]);
+        throw new Error("Invalid data format received");
+      }
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setError(err.message);
+      setDoctors([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
     fetchDoctors();
   }, []);
 
-  const extractDoctors = (data) => {
-    if (Array.isArray(data)) return data;
-    if (typeof data === "object" && data !== null) {
-      if (Array.isArray(data.doctors)) return data.doctors;
-      if (Array.isArray(data.data)) return data.data;
-      return Object.values(data).filter((item) => item && typeof item === "object");
-    }
-    return [];
-  };
-
-  const formatAvailability = (availability) => {
-    if (Array.isArray(availability) && Array.isArray(availability[0])) {
-      return availability[0].join(", ");
-    }
-    return "Not available";
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchDoctors();
   };
 
   const filteredDoctors = doctors.filter((doctor) => {
-    const name = doctor?.doctor_name?.toLowerCase() || "";
+    const name = doctor?.fullname?.toLowerCase() || "";
     const specialization = doctor?.specialization?.toLowerCase() || "";
+    const email = doctor?.email?.toLowerCase() || "";
+    const query = searchQuery.toLowerCase();
+    
     return (
-      name.includes(searchQuery.toLowerCase()) ||
-      specialization.includes(searchQuery.toLowerCase())
+      name.includes(query) ||
+      specialization.includes(query) ||
+      email.includes(query)
     );
   });
 
@@ -78,16 +82,54 @@ export default function DoctorsPage() {
       pathname: "/CreateAppointment",
       params: {
         doctorId: doctor._id,
-        doctorName: doctor.doctor_name,
-        clinicId: doctor.clinic_id,
+        doctorName: doctor.fullname,
+        specialization: doctor.specialization,
       },
     });
   };
 
-  if (loading) {
+  const renderDoctorCard = ({ item }) => (
+    <View style={styles.doctorCard}>
+      <View style={styles.doctorHeader}>
+        <Image
+          source={{ uri: getProfilePicture(item.email) }}
+          style={styles.doctorImage}
+        />
+        <View style={styles.doctorInfo}>
+          <Text style={styles.doctorName}>{item.fullname}</Text>
+          <Text style={styles.doctorSpecialty}>{item.specialization}</Text>
+          <Text style={styles.doctorEmail}>{item.email}</Text>
+        </View>
+      </View>
+      <View style={styles.doctorStats}>
+        <View style={styles.statItem}>
+          <Text style={styles.statValue}>4.8</Text>
+          <Text style={styles.statLabel}>Rating</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Text style={styles.statValue}>5+</Text>
+          <Text style={styles.statLabel}>Years</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Text style={styles.statValue}>100+</Text>
+          <Text style={styles.statLabel}>Patients</Text>
+        </View>
+      </View>
+      <TouchableOpacity 
+        style={styles.bookButton}
+        onPress={() => handleSelectDoctor(item)}
+      >
+        <Text style={styles.bookButtonText}>Book Appointment</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  if (loading && !refreshing) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#22577A" />
+        <ActivityIndicator size="large" color="#28B6F6" />
       </View>
     );
   }
@@ -95,50 +137,49 @@ export default function DoctorsPage() {
   if (error) {
     return (
       <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>Error: {error}</Text>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={fetchDoctors}>
+          <Text style={styles.retryButtonText}>Retry</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Find your doctor</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>Find your doctor</Text>
+        <Text style={styles.subtitle}>Book an appointment with our specialists</Text>
+      </View>
 
       <SearchBar
-        placeholder="Search Doctor, Health issues"
+        placeholder="Search by name, specialization or email"
         onChangeText={setSearchQuery}
         value={searchQuery}
       />
 
-      <Text style={styles.subtitle}>Available Doctors</Text>
       <FlatList
         data={filteredDoctors}
         keyExtractor={(item) => item._id?.toString() || Math.random().toString()}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.horizontalDoctorsList}
-        renderItem={({ item }) => (
-          <View style={[styles.doctorCard, { borderColor: '#22577A', borderWidth: 2 } : null]}>
-            <Image
-              source={
-                item.image
-                  ? { uri: item.image }
-                  : require("../assets/images/bookappointments.png")
-              }
-              style={styles.doctorImage}
-            />
-            <Text style={styles.doctorName}>{item.doctor_name || "Unknown Doctor"}</Text>
-            <Text style={styles.doctorSpecialty}>
-              {item.specialization || "General Practitioner"}
+        renderItem={renderDoctorCard}
+        contentContainerStyle={styles.doctorsList}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#28B6F6"]}
+          />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>
+              {searchQuery
+                ? "No doctors found matching your search"
+                : "No doctors available at the moment"}
             </Text>
-            <Text style={styles.doctorAvailability}>
-              {formatAvailability(item.availability)}
-            </Text>
-            <TouchableOpacity style = {styles.button}  onPress={() => handleSelectDoctor(item)}>
-              <Text style={styles.buttonText}>Book</Text>
-            </TouchableOpacity>
           </View>
-        )}
+        }
       />
     </SafeAreaView>
   );
@@ -148,69 +189,142 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: 16,
-    paddingTop: 40,
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#2D3748",
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#718096",
+    marginBottom: 20,
   },
   centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    padding: 20,
   },
   errorText: {
-    color: "#E63946",
-    textAlign: "center",
+    color: "#E53E3E",
     fontSize: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
+    textAlign: "center",
     marginBottom: 16,
-    color: "#22577A",
   },
-  subtitle: {
-    fontSize: 18,
+  retryButton: {
+    backgroundColor: "#28B6F6",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
     fontWeight: "600",
-    marginTop: 24,
-    marginBottom: 12,
-    color: "#22577A",
   },
-  horizontalDoctorsList: {
-    paddingBottom: 100,
+  doctorsList: {
+    padding: 16,
   },
-   doctorCard: { width: 140,height:250, backgroundColor: '#fff', borderRadius: 15, padding: 15, marginRight: 15, alignItems: 'center'},
-   doctorImage: { width: 50, height: 50, borderRadius: 25, marginRight: 15,boarderWidth:5, borderColor:'#22577A' },
+  doctorCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  doctorHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
   doctorImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    marginBottom: 10,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginRight: 16,
+    borderWidth: 2,
+    borderColor: "#28B6F6",
+  },
+  doctorInfo: {
+    flex: 1,
   },
   doctorName: {
-    fontWeight: "bold",
-    fontSize: 16,
-    color: "#22577A",
-    textAlign: "center",
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#2D3748",
+    marginBottom: 4,
   },
   doctorSpecialty: {
+    fontSize: 16,
+    color: "#4A5568",
+    marginBottom: 4,
+  },
+  doctorEmail: {
     fontSize: 14,
-    color: "#777",
-    textAlign: "center",
+    color: "#718096",
   },
-  doctorAvailability: {
-    marginTop: 5,
+  doctorStats: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    marginBottom: 16,
+  },
+  statItem: {
+    alignItems: "center",
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#2D3748",
+  },
+  statLabel: {
     fontSize: 12,
-    color: "#57CC99",
+    color: "#718096",
+    marginTop: 2,
+  },
+  statDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: "#E2E8F0",
+  },
+  bookButton: {
+    backgroundColor: "#28B6F6",
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  bookButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  emptyContainer: {
+    padding: 20,
+    alignItems: "center",
+  },
+  emptyText: {
+    fontSize: 16,
+    color: "#718096",
     textAlign: "center",
   },
-  button: {
-  marginTop: 10,
-  paddingVertical: 6,
-  paddingHorizontal: 12,
-  backgroundColor: "#38A3A5",
-  borderRadius: 8,
-},
-buttonText: {
-  color: "#fff",
-  fontWeight: "bold",
-  textAlign: "center",
-},});
+});
