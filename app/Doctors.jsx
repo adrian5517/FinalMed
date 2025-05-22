@@ -34,19 +34,15 @@ export default function DoctorsPage() {
       }
 
       const data = await response.json();
-      console.log("Doctors data:", data); // Log the full response
 
       if (data.success && Array.isArray(data.data)) {
         setDoctors(data.data);
-        console.log("Number of doctors:", data.data.length);
         setError(null);
       } else {
-        console.error("Invalid data format received:", data);
         setDoctors([]);
         throw new Error("Invalid data format received");
       }
     } catch (err) {
-      console.error("Fetch error:", err);
       setError(err.message);
       setDoctors([]);
     } finally {
@@ -92,7 +88,7 @@ export default function DoctorsPage() {
     <View style={styles.doctorCard}>
       <View style={styles.doctorHeader}>
         <Image
-          source={{ uri: getProfilePicture(item.email) }}
+          source={{ uri: item.profilePicture || getProfilePicture(item.email) }}
           style={styles.doctorImage}
         />
         <View style={styles.doctorInfo}>

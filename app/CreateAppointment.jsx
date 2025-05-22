@@ -84,8 +84,12 @@ const CreateAppointment = () => {
     try {
       const response = await axios.get(`https://nagamedserver.onrender.com/api/clinic/${clinicId}/doctor`);
       const doctorsData = response.data.map(doctor => ({
-        label: doctor.doctor_name,
+        label: doctor.fullname,
         value: doctor._id,
+        specialization: doctor.specialization,
+        email: doctor.email,
+        contact: doctor.contact,
+        availability: doctor.availability
       }));
       setDoctors(doctorsData);
 
@@ -264,6 +268,16 @@ const CreateAppointment = () => {
               style={styles.dropdown}
               dropDownContainerStyle={styles.dropdownContainer}
               onOpen={() => setClinicOpen(false)}
+              labelStyle={styles.dropdownLabel}
+              listItemLabelStyle={styles.dropdownItemLabel}
+              customItemContainerStyle={styles.dropdownItemContainer}
+              customItemLabelStyle={styles.dropdownItemLabel}
+              renderItem={item => (
+                <View style={styles.dropdownItem}>
+                  <Text style={styles.dropdownItemName}>{item.label}</Text>
+                  <Text style={styles.dropdownItemSpecialty}>{item.specialization}</Text>
+                </View>
+              )}
             />
           </View>
 
@@ -324,6 +338,30 @@ const styles = StyleSheet.create({
     color: 'red',
     marginBottom: 10,
     textAlign: 'center',
+  },
+  dropdownLabel: {
+    fontSize: 16,
+    color: '#333',
+  },
+  dropdownItemContainer: {
+    paddingVertical: 8,
+  },
+  dropdownItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  dropdownItemName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  dropdownItemSpecialty: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
+  },
+  dropdownItemLabel: {
+    fontSize: 16,
   },
 });
 
