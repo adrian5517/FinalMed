@@ -11,6 +11,7 @@ import {
   SafeAreaView,
 } from "react-native";
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
+import COLORS from "../constant/colors";
 
 const screenWidth = Dimensions.get("window").width;
 
@@ -125,15 +126,16 @@ const styles = StyleSheet.create({
   headerText: {
     fontSize: 30,
     fontWeight: "800",
-    color: "#007bff",
+    color: "#1170b3",
   },
   med: {
     fontSize: 30,
     fontWeight: "800",
-    color: "#82C45C",
+    color: COLORS.primaryGreen,
   },
   iconButton: {
     padding: 10,
+    
   },
   iconPlaceholder: {
     width: 40,

@@ -4,16 +4,18 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  StyleSheet,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  StyleSheet,
+  Modal,
+  ScrollView
 } from "react-native";
-import { useRouter, Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { FontAwesome } from "@expo/vector-icons";
 
 export default function CreateAccount() {
-  const [fullname, setFullName] = useState("");
+  const [fullname, setFullname] = useState(""); // use "fullname" to match backend
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -21,33 +23,18 @@ export default function CreateAccount() {
   const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [registered, setRegistered] = useState(false);
 
   const router = useRouter();
 
   const handleSignUp = async () => {
-    console.log("Fullname:", fullname);
-    console.log("Email:", email);
-    console.log("Password:", password);
-    console.log("Confirm Password:", confirmPassword);
-
-    if (!fullname.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
-      setErrorMessage("All fields are required.");
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      setErrorMessage("Invalid email format.");
-      return;
-    }
-
-    if (password.length < 8) {
-      setErrorMessage("Password must be at least 8 characters long.");
+    if (!fullname.trim().includes(" ")) {
+      setErrorMessage('Full name must include both first and last name');
       return;
     }
 
     if (password !== confirmPassword) {
-      setErrorMessage("Passwords do not match.");
+      setErrorMessage("Passwords do not match");
       return;
     }
 
@@ -57,174 +44,327 @@ export default function CreateAccount() {
     try {
       const response = await fetch("https://nagamedserver.onrender.com/api/auth/signup", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullname: fullname.trim(), email: email.trim(), password, type_id: 4 }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ fullname, email, password }),
       });
 
-      const data = await response.json();
+      const text = await response.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error("JSON parse error:", e);
+        setErrorMessage("Unexpected server response.");
+        setLoading(false);
+        return;
+      }
 
       if (response.ok) {
-        console.log("Account created successfully:", data);
-        router.push("/Signin");
+        setRegistered(true);
       } else {
-        setErrorMessage(data.message || "Failed to create account. Please try again.");
+        setErrorMessage(data.message || "Failed to create account.");
       }
     } catch (error) {
-      console.error("Error signing up:", error);
-      setErrorMessage("Network error. Please check your internet connection.");
+      console.error("Network error:", error);
+      setErrorMessage("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
+  const handleContinue = () => {
+    setRegistered(false);
+    router.push("/Signin");
+  };
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.container}>
-        <View style={styles.formContainer}>
-          <View style={styles.logoContainer}>
-            <Text style={styles.naga}>Naga</Text>
-            <Text style={styles.med}> Med</Text>
-          </View>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          <View style={styles.formContainer}>
+            {/* Logo Section */}
+            <View style={styles.logoContainer}>
+              <Text style={styles.naga}>Naga</Text>
+              <Text style={styles.med}>Med</Text>
+            </View>
 
-          <Text style={styles.sign}>Sign up</Text>
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>Join us to start your journey</Text>
 
-          {[
-            { label: 'Full Name', value: fullname, setValue: setFullName, placeholder: 'Enter your full name', isPassword: false },
-            { label: 'Email', value: email, setValue: setEmail, placeholder: 'Enter your email', isPassword: false },
-            { label: 'Create a password', value: password, setValue: setPassword, placeholder: '**********', isPassword: true },
-            { label: 'Confirm password', value: confirmPassword, setValue: setConfirmPassword, placeholder: '**********', isPassword: true }
-          ].map((field, index) => (
-            <View key={index} style={styles.inputContainer}>
-              <Text style={styles.label}>{field.label}</Text>
-              <View style={styles.inputWrapper}>
-                <TextInput
-                  style={styles.input}
-                  placeholder={field.placeholder}
-                  value={field.value}
-                  onChangeText={field.setValue}
-                  autoCapitalize={field.isPassword ? "none" : "words"}
-                  keyboardType={field.label === "Email" ? "email-address" : "default"}
-                  secureTextEntry={field.isPassword && (field.label === 'Create a password' ? !passwordVisible : !confirmPasswordVisible)}
-                />
-                {field.isPassword && (
-                  <TouchableOpacity
-                    onPress={() => field.label === 'Create a password' ? setPasswordVisible(!passwordVisible) : setConfirmPasswordVisible(!confirmPasswordVisible)}
+            <View style={styles.inputsGroup}>
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Full Name</Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your fullname"
+                    value={fullname}
+                    onChangeText={setFullname}
+                    autoCapitalize="words"
+                    placeholderTextColor="#A0A0A0"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Email</Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your email"
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    placeholderTextColor="#A0A0A0"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Password</Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!passwordVisible}
+                    autoCapitalize="none"
+                    placeholderTextColor="#A0A0A0"
+                  />
+                  <TouchableOpacity 
+                    style={styles.eyeIcon}
+                    onPress={() => setPasswordVisible(!passwordVisible)}
                   >
-                    <FontAwesome
-                      name={(field.label === 'Create a password' ? passwordVisible : confirmPasswordVisible) ? "eye-slash" : "eye"}
-                      size={20}
-                      color="#777"
-                    />
+                    <FontAwesome name={passwordVisible ? "eye" : "eye-slash"} size={20} color="#777" />
                   </TouchableOpacity>
-                )}
+                </View>
+              </View>
+
+              <View style={styles.inputContainer}>
+                <Text style={styles.label}>Confirm Password</Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Confirm your password"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry={!confirmPasswordVisible}
+                    autoCapitalize="none"
+                    placeholderTextColor="#A0A0A0"
+                  />
+                  <TouchableOpacity 
+                    style={styles.eyeIcon}
+                    onPress={() => setConfirmPasswordVisible(!confirmPasswordVisible)}
+                  >
+                    <FontAwesome name={confirmPasswordVisible ? "eye" : "eye-slash"} size={20} color="#777" />
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
-          ))}
 
-          {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+            {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
-          <TouchableOpacity
-            style={[styles.signUpButton, loading && styles.disabledButton]}
-            onPress={handleSignUp}
-            disabled={loading}
-          >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Sign Up</Text>}
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.signUpButton, loading && styles.disabledButton]}
+              onPress={handleSignUp}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Create Account</Text>
+              )}
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.signInRedirect} onPress={() => router.push("/Signin")}>
-            <Text>
-              Already have an account? <Text style={styles.loginText}>Log in</Text>
-            </Text>
-          </TouchableOpacity>
-        </View>
+            <View style={styles.signinContainer}>
+              <Text style={styles.signinText}>Already have an account?</Text>
+              <TouchableOpacity onPress={() => router.push("/Signin")}>
+                <Text style={styles.signinLink}>Sign In</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal visible={registered} transparent animationType="fade">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <FontAwesome name="check-circle" size={50} color="#28B6F6" style={styles.successIcon} />
+            <Text style={styles.successText}>Successfully Registered!</Text>
+            <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
+              <Text style={styles.buttonText}>Continue to Sign In</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
 
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#FFFFFF",
+  },
+  scrollContainer: {
+    flexGrow: 1,
   },
   formContainer: {
     flex: 1,
     justifyContent: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 40,
   },
   logoContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 32,
   },
   naga: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#007bff",
-  },
-  med: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#28a745",
-  },
-  sign: {
-    fontSize: 24,
+    fontSize: 48,
     fontWeight: "bold",
     color: "#1170B3",
   },
+  med: {
+    fontSize: 48,
+    fontWeight: "bold",
+    color: "#82C45C",
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#1170B3",
+    textAlign: "center",
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 32,
+  },
+  inputsGroup: {
+    gap: 20,
+  },
   inputContainer: {
-    marginBottom: 16,
+    gap: 8,
   },
   label: {
     fontSize: 14,
     color: "#333",
-    marginBottom: 8,
-    fontWeight: "bold",
+    fontWeight: "600",
+    marginLeft: 4,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    backgroundColor: "#fff",
+    borderWidth: 1.5,
+    borderColor: "#E0E0E0",
+    borderRadius: 12,
+    backgroundColor: "#FAFAFA",
+    paddingHorizontal: 16,
   },
   input: {
     flex: 1,
-    height: 40,
-    fontSize: 14,
-    color: "#000",
+    height: 52,
+    fontSize: 16,
+    color: "#333",
   },
-  errorText: {
-    color: "red",
-    fontSize: 12,
-    marginBottom: 8,
+  eyeIcon: {
+    padding: 8,
   },
   signUpButton: {
-    backgroundColor: "#007bff",
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: "#28B6F6",
+    height: 52,
+    borderRadius: 12,
+    justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginTop: 32,
+    shadowColor: "#28B6F6",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   disabledButton: {
-    backgroundColor: "#ccc",
+    backgroundColor: "#A0A0A0",
+    shadowOpacity: 0,
+    elevation: 0,
   },
   buttonText: {
-    color: "#fff",
+    color: "white",
     fontSize: 16,
-    fontWeight: "bold",
+    fontWeight: "700",
   },
-  signInRedirect: {
-    marginTop: 12,
+  errorText: {
+    color: "#FF4444",
+    fontSize: 14,
+    textAlign: "center",
+    marginTop: 16,
+  },
+  signinContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 24,
+    gap: 8,
+  },
+  signinText: {
+    fontSize: 14,
+    color: "#666",
+  },
+  signinLink: {
+    fontSize: 14,
+    color: "#28B6F6",
+    fontWeight: "600",
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
     alignItems: "center",
   },
-  loginText: {
-    color: "#007bff",
+  modalContent: {
+    backgroundColor: "#fff",
+    padding: 32,
+    borderRadius: 20,
+    alignItems: "center",
+    width: "80%",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  successIcon: {
+    marginBottom: 16,
+  },
+  successText: {
+    fontSize: 20,
     fontWeight: "bold",
+    color: "#333",
+    marginBottom: 24,
+    textAlign: "center",
+  },
+  continueButton: {
+    backgroundColor: "#28B6F6",
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    width: "100%",
+    alignItems: "center",
   },
 });

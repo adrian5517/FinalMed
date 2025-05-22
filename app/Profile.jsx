@@ -1,16 +1,21 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, TextInput, Modal, ScrollView } from "react-native";
+import {
+  View, Text, TouchableOpacity, StyleSheet, TextInput,
+  Modal, ScrollView, Alert
+} from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import { useAuthStore } from "../store/authStore";
 
 export default function Profile() {
-  const [fullName, setFullName] = useState("Loading...");
+  const [fullName, setFullName] = useState("awdadawdaw");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { logout, user } = useAuthStore();
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -23,15 +28,12 @@ export default function Profile() {
         }
 
         const response = await fetch(`https://nagamedserver.onrender.com/api/user/${userId}`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch user data.");
-        }
+        if (!response.ok) throw new Error("Failed to fetch user data.");
 
         const data = await response.json();
         setFullName(data.fullname || "N/A");
         setEmail(data.email || "");
 
-        // Load phone and address from AsyncStorage
         const storedPhone = await AsyncStorage.getItem("phone");
         const storedAddress = await AsyncStorage.getItem("address");
         setPhone(storedPhone || "");
@@ -45,16 +47,30 @@ export default function Profile() {
     fetchUserData();
   }, []);
 
+  const handleLogout = async () => {
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await logout();
+            router.replace("/");
+          } catch (error) {
+            console.error("Logout error:", error);
+            Alert.alert("Logout Error", error.message || "Failed to logout. Please try again.");
+          }
+        },
+      },
+    ]);
+  };
+
   const handleEditProfile = async () => {
     setLoading(true);
     try {
-      // Save phone and address locally
-      await AsyncStorage.setItem("fullName", fullName);
-      await AsyncStorage.setItem("email", email);
       await AsyncStorage.setItem("phone", phone);
       await AsyncStorage.setItem("address", address);
-  
-
       setIsEditing(false);
     } catch (error) {
       console.error("Error saving profile locally:", error);
@@ -63,20 +79,8 @@ export default function Profile() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await AsyncStorage.removeItem("userToken");
-      await AsyncStorage.removeItem("phone");
-      await AsyncStorage.removeItem("address");
-      router.replace("/");
-    } catch (error) {
-      console.error("Error logging out:", error);
-    }
-  };
-
   return (
     <ScrollView style={styles.container}>
-      {/* Profile Card */}
       <View style={styles.profileCard}>
         <View style={styles.profileInfo}>
           <View style={styles.avatar}>
@@ -92,7 +96,6 @@ export default function Profile() {
         </TouchableOpacity>
       </View>
 
-      {/* General Info */}
       <View style={styles.generalInfoCard}>
         <Text style={styles.sectionTitle}>General Info</Text>
         <View style={styles.hr} />
@@ -119,42 +122,18 @@ export default function Profile() {
         <View style={styles.hr} />
       </View>
 
-      {/* Logout Button */}
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <Text style={styles.logoutText}>Logout</Text>
       </TouchableOpacity>
 
-      {/* Edit Profile Modal */}
       <Modal visible={isEditing} animationType="slide" transparent={true}>
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Edit Profile</Text>
-            <TextInput
-        style={styles.input}
-        placeholder="Full Name"
-        value={fullName}
-        onChangeText={setFullName}
-      />
-
-      {/* Email Input */}
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-      />
-            <TextInput
-              style={styles.input}
-              placeholder="Phone Number"
-              value={phone}
-              onChangeText={setPhone}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Address"
-              value={address}
-              onChangeText={setAddress}
-            />
+            <TextInput style={styles.input} placeholder="Full Name" value={fullName} onChangeText={setFullName} />
+            <TextInput style={styles.input} placeholder="Email" value={email} onChangeText={setEmail} />
+            <TextInput style={styles.input} placeholder="Phone Number" value={phone} onChangeText={setPhone} />
+            <TextInput style={styles.input} placeholder="Address" value={address} onChangeText={setAddress} />
             <View style={styles.modalButtons}>
               <TouchableOpacity style={styles.saveButton} onPress={handleEditProfile} disabled={loading}>
                 <Text style={styles.saveButtonText}>{loading ? "Saving..." : "Save"}</Text>
