@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import SearchBar from "../components/SearchBar";
+import Ionicons from "@expo/vector-icons/Ionicons";
 
 export default function DoctorsPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -22,11 +23,19 @@ export default function DoctorsPage() {
   const router = useRouter();
 
   const getProfilePicture = (email) => {
-    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`;
+    console.log('Getting profile picture for email:', email);
+    if (!email) {
+      console.log('No email provided, using default avatar');
+      return 'https://api.dicebear.com/7.x/avataaars/png?seed=default';
+    }
+    const avatarUrl = `https://api.dicebear.com/7.x/avataaars/png?seed=${email}`;
+    console.log('Generated avatar URL:', avatarUrl);
+    return avatarUrl;
   };
 
   const fetchDoctors = async () => {
     try {
+      console.log('Fetching doctors...');
       const response = await fetch("https://nagamedserver.onrender.com/api/doctorauth/");
 
       if (!response.ok) {
@@ -34,6 +43,7 @@ export default function DoctorsPage() {
       }
 
       const data = await response.json();
+      console.log('Doctors data received:', data);
 
       if (data.success && Array.isArray(data.data)) {
         setDoctors(data.data);
@@ -43,6 +53,7 @@ export default function DoctorsPage() {
         throw new Error("Invalid data format received");
       }
     } catch (err) {
+      console.error("Error fetching doctors:", err);
       setError(err.message);
       setDoctors([]);
     } finally {
@@ -84,43 +95,61 @@ export default function DoctorsPage() {
     });
   };
 
-  const renderDoctorCard = ({ item }) => (
-    <View style={styles.doctorCard}>
-      <View style={styles.doctorHeader}>
-        <Image
-          source={{ uri: item.profilePicture || getProfilePicture(item.email) }}
-          style={styles.doctorImage}
-        />
-        <View style={styles.doctorInfo}>
-          <Text style={styles.doctorName}>{item.fullname}</Text>
-          <Text style={styles.doctorSpecialty}>{item.specialization}</Text>
-          <Text style={styles.doctorEmail}>{item.email}</Text>
+  const renderDoctorCard = ({ item }) => {
+    console.log('Rendering doctor card:', {
+      doctorId: item._id,
+      email: item.email,
+      hasProfilePicture: !!item.profilePicture
+    });
+
+    return (
+      <View style={styles.doctorCard}>
+        <View style={styles.doctorHeader}>
+          <View style={styles.doctorImageContainer}>
+            <Image
+              source={{ uri: getProfilePicture(item.email) }}
+              style={styles.doctorImage}
+              onError={(e) => {
+                console.log("Debug - Doctor image loading error:", e.nativeEvent.error);
+                console.log("Attempting to load image for doctor:", item.email);
+                e.target.setNativeProps({
+                  source: { uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=default' }
+                });
+              }}
+            />
+          </View>
+          <View style={styles.doctorInfo}>
+            <Text style={styles.doctorName}>{item.fullname}</Text>
+            <Text style={styles.doctorSpecialty}>{item.specialization}</Text>
+          </View>
         </View>
+        <View style={styles.doctorDetails}>
+          <View style={styles.detailItem}>
+            <Ionicons name="call-outline" size={16} color="#28B6F6" />
+            <Text style={styles.detailText}>{item.contact}</Text>
+          </View>
+          <View style={styles.detailItem}>
+            <Ionicons name="mail-outline" size={16} color="#28B6F6" />
+            <Text style={styles.detailText}>{item.email}</Text>
+          </View>
+          <View style={styles.availabilityContainer}>
+            <Ionicons name="calendar-outline" size={16} color="#28B6F6" />
+            <Text style={styles.availabilityText}>
+              {item.availability && item.availability.length > 0 
+                ? `${item.availability.length} days available`
+                : 'Not available'}
+            </Text>
+          </View>
+        </View>
+        <TouchableOpacity 
+          style={styles.bookButton}
+          onPress={() => handleSelectDoctor(item)}
+        >
+          <Text style={styles.bookButtonText}>Book Appointment</Text>
+        </TouchableOpacity>
       </View>
-      <View style={styles.doctorStats}>
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>4.8</Text>
-          <Text style={styles.statLabel}>Rating</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>5+</Text>
-          <Text style={styles.statLabel}>Years</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>100+</Text>
-          <Text style={styles.statLabel}>Patients</Text>
-        </View>
-      </View>
-      <TouchableOpacity 
-        style={styles.bookButton}
-        onPress={() => handleSelectDoctor(item)}
-      >
-        <Text style={styles.bookButtonText}>Book Appointment</Text>
-      </TouchableOpacity>
-    </View>
-  );
+    );
+  };
 
   if (loading && !refreshing) {
     return (
@@ -249,13 +278,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
-  doctorImage: {
+  doctorImageContainer: {
     width: 80,
     height: 80,
     borderRadius: 40,
+    overflow: 'hidden',
     marginRight: 16,
     borderWidth: 2,
-    borderColor: "#28B6F6",
+    borderColor: '#28B6F6',
+  },
+  doctorImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
   doctorInfo: {
     flex: 1,
@@ -269,39 +304,33 @@ const styles = StyleSheet.create({
   doctorSpecialty: {
     fontSize: 16,
     color: "#4A5568",
-    marginBottom: 4,
+    marginBottom: 8,
   },
-  doctorEmail: {
-    fontSize: 14,
-    color: "#718096",
-  },
-  doctorStats: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+  doctorDetails: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
     marginBottom: 16,
   },
-  statItem: {
-    alignItems: "center",
+  detailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
   },
-  statValue: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2D3748",
+  detailText: {
+    fontSize: 14,
+    color: "#4A5568",
+    marginLeft: 8,
+    flex: 1,
   },
-  statLabel: {
-    fontSize: 12,
-    color: "#718096",
-    marginTop: 2,
+  availabilityContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  statDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: "#E2E8F0",
+  availabilityText: {
+    fontSize: 14,
+    color: "#4A5568",
+    marginLeft: 8,
   },
   bookButton: {
     backgroundColor: "#28B6F6",

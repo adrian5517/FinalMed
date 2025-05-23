@@ -101,33 +101,37 @@ export default function Layout() {
     <SafeAreaView style={styles.container}>
       {!hideNavBar && (
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => router.back()}
-          >
+          <View style={styles.headerLeft}>
             {!isHome && (
-              <Ionicons
-                name="arrow-back"
-                size={30}
-                color="black"
-              />
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={() => router.back()}
+              >
+                <Ionicons
+                  name="arrow-back"
+                  size={24}
+                  color="#2D3748"
+                />
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
-          
-          <Text style={styles.headerText}>
-            Naga <Text style={styles.med}>Med</Text>
-          </Text>
+            <Text style={styles.headerText}>
+              Naga<Text style={styles.med}>Med</Text>
+            </Text>
+          </View>
 
           <View style={styles.headerRight}>
             <TouchableOpacity
               style={styles.notificationButton}
               onPress={() => console.log("Open Notifications")}
             >
-              <Ionicons
-                name="notifications-outline"
-                size={24}
-                color="#1170b3"
-              />
+              <View style={styles.notificationBadge}>
+                <Ionicons
+                  name="notifications-outline"
+                  size={24}
+                  color="#2D3748"
+                />
+                <View style={styles.badge} />
+              </View>
             </TouchableOpacity>
             
             <TouchableOpacity
@@ -142,7 +146,7 @@ export default function Layout() {
                 />
               ) : (
                 <View style={styles.profilePlaceholder}>
-                  <FontAwesome5 name="user" size={20} color="#1170b3" />
+                  <FontAwesome5 name="user" size={20} color="#2D3748" />
                 </View>
               )}
             </TouchableOpacity>
@@ -178,12 +182,12 @@ export default function Layout() {
               >
                 {isActive ? (
                   <View style={styles.activeButtonContainer}>
-                    <FontAwesome5 name={getIconName(item)} size={20} color="#fff" />
+                    <Ionicons name={getIconName(item)} size={24} color="#fff" />
                     <Text style={styles.activeNavText}>{item}</Text>
                   </View>
                 ) : (
                   <View style={styles.inactiveButtonContainer}>
-                    <FontAwesome5 name={getIconName(item)} size={20} color="#333" />
+                    <Ionicons name={getIconName(item)} size={24} color="#718096" />
                     <Text style={styles.navText}>{item}</Text>
                   </View>
                 )}
@@ -201,15 +205,15 @@ function getIconName(name) {
     case "Home":
       return "home";
     case "Appointment":
-      return "calendar-alt";
+      return "calendar";
     case "Doctors":
-      return "user-md";
+      return "medical";
     case "Status":
-      return "chart-line";
+      return "stats-chart";
     case "Profile":
-      return "user";
+      return "person";
     default:
-      return "question-circle";
+      return "help-circle";
   }
 }
 
@@ -225,70 +229,85 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    height: 70,
+    height: 60,
     backgroundColor: "#fff",
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
+    borderBottomColor: "#E2E8F0",
     elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
   },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   headerText: {
-    fontSize: 30,
-    fontWeight: "800",
-    color: "#1170b3",
+    fontSize: 24,
+    fontWeight: "700",
+    color: COLORS.primaryBlue,
+    marginLeft: 8,
   },
   med: {
-    fontSize: 30,
-    fontWeight: "800",
     color: COLORS.primaryGreen,
   },
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 15,
+    gap: 16,
   },
   notificationButton: {
     padding: 8,
+  },
+  notificationBadge: {
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FF3B30',
   },
   profileButton: {
     padding: 4,
   },
   profilePicture: {
-    width: 35,
-    height: 35,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 2,
-    borderColor: "#1170b3",
+    borderColor: "#28B6F6",
   },
   profilePlaceholder: {
-    width: 35,
-    height: 35,
-    borderRadius: 20,
-    backgroundColor: "#f0f0f0",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F7FAFC",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
-    borderColor: "#1170b3",
+    borderColor: "#28B6F6",
   },
   iconButton: {
-    padding: 10,
+    padding: 8,
   },
   navBar: {
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
     width: "100%",
-    height: 85,
+    height: 80,
     backgroundColor: "#fff",
-    paddingBottom: 20,
+    paddingBottom: 16,
     position: "absolute",
     bottom: 0,
     borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
+    borderTopColor: "#E2E8F0",
     elevation: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
@@ -302,19 +321,19 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   activeNavButton: {
-    transform: [{ translateY: -15 }],
+    transform: [{ translateY: -12 }],
   },
   navText: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#666",
+    fontWeight: "500",
+    color: "#718096",
     marginTop: 4,
   },
   activeButtonContainer: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: "#0288D0",
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#28B6F6",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 4,

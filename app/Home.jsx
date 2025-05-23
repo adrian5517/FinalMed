@@ -14,6 +14,9 @@ export default function Home() {
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [clinics, setClinics] = useState([]);
+  const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const [doctorModalVisible, setDoctorModalVisible] = useState(false);
+  const [currentDoctorIndex, setCurrentDoctorIndex] = useState(0);
   const router = useRouter();
 
   useEffect(() => {
@@ -102,9 +105,24 @@ export default function Home() {
   };
 
   const menuItems = [
-    { text: "Book Appointment", image: require("../assets/images/bookappointments.png"), path: "/CreateAppointment" },
-    { text: "Health Records", image: require("../assets/images/healthrecords.png"), path: "/Status" },
-    { text: "Consult Doctor", image: require("../assets/images/consultdoctor.png"), path: "/Doctors" },
+    { 
+      text: "Book Appointment", 
+      icon: "calendar-outline",
+      color: "#28B6F6",
+      path: "/CreateAppointment" 
+    },
+    { 
+      text: "Health Records", 
+      icon: "document-text-outline",
+      color: "#A7EC80",
+      path: "/Status" 
+    },
+    { 
+      text: "Consult Doctor", 
+      icon: "medical-outline",
+      color: "#FFB74D",
+      path: "/Doctors" 
+    },
   ];
 
   const getProfilePicture = (email) => {
@@ -186,6 +204,11 @@ export default function Home() {
     return clinic ? clinic.clinic_name : 'Unknown Clinic';
   };
 
+  const formatAvailability = (availability) => {
+    if (!availability || !Array.isArray(availability)) return 'Not available';
+    return availability.map(avail => `${avail.day}: ${avail.time}`).join('\n');
+  };
+
   const AppointmentModal = ({ appointment, visible, onClose }) => {
     if (!appointment) return null;
 
@@ -206,47 +229,68 @@ export default function Home() {
             </View>
 
             <ScrollView style={styles.modalBody}>
-              <View style={styles.modalSection}>
-                <Text style={styles.modalLabel}>Status</Text>
-                <View style={[styles.statusBadge, { backgroundColor: appointment.status === 'Approved' ? '#A7EC80' : '#FFB74D' }]}>
-                  <Text style={styles.statusText}>{appointment.status}</Text>
-                </View>
+              <View style={[styles.statusContainer, { backgroundColor: appointment.status === 'Approved' ? '#E6F4EA' : '#FFF4E5' }]}>
+                <View style={[styles.statusDot, { backgroundColor: appointment.status === 'Approved' ? '#A7EC80' : '#FFB74D' }]} />
+                <Text style={[styles.statusText, { color: appointment.status === 'Approved' ? '#2E7D32' : '#E65100' }]}>
+                  {appointment.status}
+                </Text>
               </View>
 
               <View style={styles.modalSection}>
-                <Text style={styles.modalLabel}>Date & Time</Text>
+                <View style={styles.modalSectionHeader}>
+                  <Ionicons name="calendar-outline" size={20} color="#28B6F6" />
+                  <Text style={styles.modalLabel}>Date & Time</Text>
+                </View>
                 <Text style={styles.modalValue}>{formatDateTime(appointment.appointment_date_time)}</Text>
               </View>
 
               <View style={styles.modalSection}>
-                <Text style={styles.modalLabel}>Doctor</Text>
+                <View style={styles.modalSectionHeader}>
+                  <Ionicons name="person-outline" size={20} color="#28B6F6" />
+                  <Text style={styles.modalLabel}>Doctor</Text>
+                </View>
                 <Text style={styles.modalValue}>{getDoctorName(appointment.doctor_id)}</Text>
               </View>
 
               <View style={styles.modalSection}>
-                <Text style={styles.modalLabel}>Clinic</Text>
+                <View style={styles.modalSectionHeader}>
+                  <Ionicons name="business-outline" size={20} color="#28B6F6" />
+                  <Text style={styles.modalLabel}>Clinic</Text>
+                </View>
                 <Text style={styles.modalValue}>{getClinicName(appointment.clinic_id)}</Text>
               </View>
 
               <View style={styles.modalSection}>
-                <Text style={styles.modalLabel}>Appointment ID</Text>
+                <View style={styles.modalSectionHeader}>
+                  <Ionicons name="document-text-outline" size={20} color="#28B6F6" />
+                  <Text style={styles.modalLabel}>Appointment ID</Text>
+                </View>
                 <Text style={styles.modalValue}>{appointment.appointment_id}</Text>
               </View>
 
               <View style={styles.modalSection}>
-                <Text style={styles.modalLabel}>Filled By</Text>
+                <View style={styles.modalSectionHeader}>
+                  <Ionicons name="person-add-outline" size={20} color="#28B6F6" />
+                  <Text style={styles.modalLabel}>Filled By</Text>
+                </View>
                 <Text style={styles.modalValue}>{appointment.filled_by}</Text>
               </View>
 
               {appointment.description && (
                 <View style={styles.modalSection}>
-                  <Text style={styles.modalLabel}>Description</Text>
+                  <View style={styles.modalSectionHeader}>
+                    <Ionicons name="chatbubble-outline" size={20} color="#28B6F6" />
+                    <Text style={styles.modalLabel}>Description</Text>
+                  </View>
                   <Text style={styles.modalValue}>{appointment.description}</Text>
                 </View>
               )}
 
               <View style={styles.modalSection}>
-                <Text style={styles.modalLabel}>Created At</Text>
+                <View style={styles.modalSectionHeader}>
+                  <Ionicons name="time-outline" size={20} color="#28B6F6" />
+                  <Text style={styles.modalLabel}>Created At</Text>
+                </View>
                 <Text style={styles.modalValue}>{new Date(appointment.createdAt).toLocaleString()}</Text>
               </View>
             </ScrollView>
@@ -254,6 +298,124 @@ export default function Home() {
         </View>
       </Modal>
     );
+  };
+
+  const DoctorModal = ({ doctor, visible, onClose }) => {
+    if (!doctor) return null;
+
+    return (
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={visible}
+        onRequestClose={onClose}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Doctor Details</Text>
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              <View style={styles.doctorModalImageContainer}>
+                <Image 
+                  source={{ uri: getProfilePicture(doctor.email) }} 
+                  style={styles.doctorModalImage}
+                  onError={(e) => {
+                    console.log("Debug - Doctor image loading error:", e.nativeEvent.error);
+                    e.target.setNativeProps({
+                      source: { uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=default' }
+                    });
+                  }}
+                />
+              </View>
+
+              <View style={styles.modalSection}>
+                <View style={styles.modalSectionHeader}>
+                  <Ionicons name="person-outline" size={20} color="#28B6F6" />
+                  <Text style={styles.modalLabel}>Name</Text>
+                </View>
+                <Text style={styles.modalValue}>{doctor.fullname}</Text>
+              </View>
+
+              <View style={styles.modalSection}>
+                <View style={styles.modalSectionHeader}>
+                  <Ionicons name="medical-outline" size={20} color="#28B6F6" />
+                  <Text style={styles.modalLabel}>Specialization</Text>
+                </View>
+                <Text style={styles.modalValue}>{doctor.specialization}</Text>
+              </View>
+
+              <View style={styles.modalSection}>
+                <View style={styles.modalSectionHeader}>
+                  <Ionicons name="call-outline" size={20} color="#28B6F6" />
+                  <Text style={styles.modalLabel}>Contact</Text>
+                </View>
+                <Text style={styles.modalValue}>{doctor.contact}</Text>
+              </View>
+
+              <View style={styles.modalSection}>
+                <View style={styles.modalSectionHeader}>
+                  <Ionicons name="location-outline" size={20} color="#28B6F6" />
+                  <Text style={styles.modalLabel}>Address</Text>
+                </View>
+                <Text style={styles.modalValue}>{doctor.address}</Text>
+              </View>
+
+              <View style={styles.modalSection}>
+                <View style={styles.modalSectionHeader}>
+                  <Ionicons name="mail-outline" size={20} color="#28B6F6" />
+                  <Text style={styles.modalLabel}>Email</Text>
+                </View>
+                <Text style={styles.modalValue}>{doctor.email}</Text>
+              </View>
+
+              <View style={styles.modalSection}>
+                <View style={styles.modalSectionHeader}>
+                  <Ionicons name="calendar-outline" size={20} color="#28B6F6" />
+                  <Text style={styles.modalLabel}>Availability</Text>
+                </View>
+                <View style={styles.availabilityContainer}>
+                  {doctor.availability && doctor.availability.map((avail, index) => (
+                    <View key={avail._id} style={styles.availabilityItem}>
+                      <Text style={styles.availabilityDay}>{avail.day}</Text>
+                      <Text style={styles.availabilityTime}>{avail.time}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              <TouchableOpacity 
+                style={styles.bookAppointmentButton}
+                onPress={() => {
+                  onClose();
+                  router.push({
+                    pathname: "/CreateAppointment",
+                    params: {
+                      doctorId: doctor._id,
+                      doctorName: doctor.fullname,
+                      specialization: doctor.specialization,
+                    },
+                  });
+                }}
+              >
+                <Text style={styles.bookAppointmentButtonText}>Book Appointment</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
+  const handleDoctorScroll = (event) => {
+    const contentOffset = event.nativeEvent.contentOffset.x;
+    const viewSize = event.nativeEvent.layoutMeasurement.width;
+    const selectedIndex = Math.floor(contentOffset / viewSize);
+    setCurrentDoctorIndex(selectedIndex);
   };
 
   return (
@@ -268,23 +430,18 @@ export default function Home() {
         <Text style={styles.pt1}>Good day, {fullname}!</Text>
 
         {/* Menu Icons Section */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.cardBox}
-          contentContainerStyle={{ paddingHorizontal: 10 }}
-        >
+        <View style={styles.menuContainer}>
           {menuItems.map((item, index) => (
             <Link key={index} href={item.path} asChild>
-              <TouchableOpacity style={styles.boxWrapper} activeOpacity={0.7}>
-                <View style={styles.box}>
-                  <Image source={item.image} style={styles.boxImage} />
+              <TouchableOpacity style={styles.menuItem} activeOpacity={0.7}>
+                <View style={[styles.menuIconContainer, { backgroundColor: item.color + '20' }]}>
+                  <Ionicons name={item.icon} size={28} color={item.color} />
                 </View>
-                <Text style={styles.boxText}>{item.text}</Text>
+                <Text style={styles.menuText}>{item.text}</Text>
               </TouchableOpacity>
             </Link>
           ))}
-        </ScrollView>
+        </View>
 
         {/* Appointments Section */}
         <View style={styles.section}>
@@ -348,70 +505,86 @@ export default function Home() {
               <Text style={styles.seeAll}>See All</Text>
             </TouchableOpacity>
           </View>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.doctorsSlider}
-          >
-            {doctors.length > 0 ? (
-              doctors.map((doctor) => (
-                <View key={doctor._id} style={styles.doctorCard}>
-                  <View style={styles.doctorInfoContainer}>
-                    <View style={styles.doctorImageContainer}>
-                      <Image 
-                        source={{ uri: getProfilePicture(doctor.email) }} 
-                        style={styles.doctorImage}
-                        onError={(e) => {
-                          console.log("Debug - Doctor image loading error:", e.nativeEvent.error);
-                          // Fallback to default avatar if image fails to load
-                          e.target.setNativeProps({
-                            source: { uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=default' }
-                          });
-                        }}
-                      />
-                    </View>
-                    <View style={styles.doctorDetails}>
-                      <Text style={styles.doctorName}>{doctor.fullname}</Text>
-                      <Text style={styles.doctorSpecialty}>{doctor.specialization}</Text>
-                      <View style={styles.doctorStats}>
-                        <View style={styles.statItem}>
-                          <Text style={styles.statValue}>4.8</Text>
-                          <Text style={styles.statLabel}>Rating</Text>
-                        </View>
-                        <View style={styles.statDivider} />
-                        <View style={styles.statItem}>
-                          <Text style={styles.statValue}>5+</Text>
-                          <Text style={styles.statLabel}>Years</Text>
-                        </View>
-                        <View style={styles.statDivider} />
-                        <View style={styles.statItem}>
-                          <Text style={styles.statValue}>100+</Text>
-                          <Text style={styles.statLabel}>Patients</Text>
-                        </View>
+          <View style={styles.doctorsSliderContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.doctorsSlider}
+              pagingEnabled
+              onScroll={handleDoctorScroll}
+              scrollEventThrottle={16}
+            >
+              {doctors.length > 0 ? (
+                doctors.map((doctor) => (
+                  <View key={doctor._id} style={styles.doctorCard}>
+                    <View style={styles.doctorInfoContainer}>
+                      <View style={styles.doctorImageContainer}>
+                        <Image 
+                          source={{ uri: getProfilePicture(doctor.email) }} 
+                          style={styles.doctorImage}
+                          onError={(e) => {
+                            console.log("Debug - Doctor image loading error:", e.nativeEvent.error);
+                            e.target.setNativeProps({
+                              source: { uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=default' }
+                            });
+                          }}
+                        />
+                      </View>
+                      <View style={styles.doctorDetails}>
+                        <Text style={styles.doctorName}>{doctor.fullname}</Text>
+                        <Text style={styles.doctorSpecialty}>{doctor.specialization}</Text>
                       </View>
                     </View>
+                    <View style={styles.doctorInfoSection}>
+                      <View style={styles.infoItem}>
+                        <Ionicons name="call-outline" size={16} color="#28B6F6" />
+                        <Text style={styles.infoText}>{doctor.contact}</Text>
+                      </View>
+                      <View style={styles.infoItem}>
+                        <Ionicons name="mail-outline" size={16} color="#28B6F6" />
+                        <Text style={styles.infoText}>{doctor.email}</Text>
+                      </View>
+                      <View style={styles.infoItem}>
+                        <Ionicons name="calendar-outline" size={16} color="#28B6F6" />
+                        <Text style={styles.infoText}>
+                          {doctor.availability && doctor.availability.length > 0 
+                            ? `${doctor.availability.length} days available`
+                            : 'Not available'}
+                        </Text>
+                      </View>
+                    </View>
+                    <TouchableOpacity 
+                      style={styles.viewDetailsButton}
+                      onPress={() => {
+                        setSelectedDoctor(doctor);
+                        setDoctorModalVisible(true);
+                      }}
+                    >
+                      <Text style={styles.viewDetailsText}>View Details</Text>
+                      <Ionicons name="chevron-forward" size={16} color="#28B6F6" />
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity 
-                    style={styles.bookButton}
-                    onPress={() => router.push({
-                      pathname: "/CreateAppointment",
-                      params: {
-                        doctorId: doctor._id,
-                        doctorName: doctor.fullname,
-                        specialization: doctor.specialization,
-                      },
-                    })}
-                  >
-                    <Text style={styles.bookButtonText}>Book Appointment</Text>
-                  </TouchableOpacity>
+                ))
+              ) : (
+                <View style={styles.noDoctorsContainer}>
+                  <Text style={styles.noDoctorsText}>No doctors available at the moment.</Text>
                 </View>
-              ))
-            ) : (
-              <View style={styles.noDoctorsContainer}>
-                <Text style={styles.noDoctorsText}>No doctors available at the moment.</Text>
+              )}
+            </ScrollView>
+            {doctors.length > 0 && (
+              <View style={styles.paginationContainer}>
+                {doctors.map((_, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.paginationDot,
+                      index === currentDoctorIndex && styles.paginationDotActive
+                    ]}
+                  />
+                ))}
               </View>
             )}
-          </ScrollView>
+          </View>
         </View>
 
         {/* Health News Section */}
@@ -475,6 +648,12 @@ export default function Home() {
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
       />
+
+      <DoctorModal
+        doctor={selectedDoctor}
+        visible={doctorModalVisible}
+        onClose={() => setDoctorModalVisible(false)}
+      />
     </View>
   );
 }
@@ -502,6 +681,39 @@ const styles = StyleSheet.create({
     marginTop: 15,
     marginHorizontal: 15,
     color: "#2D3748",
+  },
+  menuContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginHorizontal: 15,
+    marginVertical: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  menuItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  menuIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  menuText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#2D3748',
+    textAlign: 'center',
   },
   box: {
     width: 120,
@@ -573,7 +785,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginRight: 16,
     borderWidth: 2,
-    borderColor: '#A7EC80',
+    borderColor: '#28B6F6',
   },
   doctorImage: {
     width: '100%',
@@ -590,33 +802,54 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   doctorSpecialty: {
-    fontSize: 14,
-    color: '#718096',
+    fontSize: 16,
+    color: '#4A5568',
     marginBottom: 8,
   },
-  doctorStats: {
+  contactInfo: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2D3748',
-  },
-  statLabel: {
-    fontSize: 12,
+  contactText: {
+    fontSize: 14,
     color: '#718096',
-    marginTop: 2,
+    marginLeft: 4,
   },
-  statDivider: {
-    width: 1,
-    height: 20,
+  doctorInfoSection: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  infoText: {
+    fontSize: 14,
+    color: '#4A5568',
+    marginLeft: 8,
+    flex: 1,
+  },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  paginationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#E2E8F0',
-    marginHorizontal: 10,
+    marginHorizontal: 4,
+  },
+  paginationDotActive: {
+    backgroundColor: '#28B6F6',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
   },
   bookButton: {
     backgroundColor: '#A7EC80',
@@ -826,6 +1059,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
   },
+  doctorsSliderContainer: {
+    position: 'relative',
+  },
   doctorsSlider: {
     paddingHorizontal: 15,
     paddingBottom: 10,
@@ -856,7 +1092,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E0E0E0',
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#2D3748',
   },
@@ -868,21 +1104,100 @@ const styles = StyleSheet.create({
   },
   modalSection: {
     marginBottom: 20,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 16,
+  },
+  modalSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   modalLabel: {
-    fontSize: 14,
-    color: '#718096',
-    marginBottom: 5,
+    fontSize: 16,
+    color: '#4A5568',
+    marginLeft: 8,
+    fontWeight: '600',
   },
   modalValue: {
     fontSize: 16,
     color: '#2D3748',
+    marginLeft: 28,
   },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
     borderRadius: 12,
-    alignSelf: 'flex-start',
+    marginBottom: 20,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  statusText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  doctorModalImageContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    overflow: 'hidden',
+    marginBottom: 20,
+    alignSelf: 'center',
+    borderWidth: 2,
+    borderColor: '#28B6F6',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  doctorModalImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  availabilityContainer: {
+    marginTop: 8,
+  },
+  availabilityItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  availabilityDay: {
+    fontSize: 16,
+    color: '#2D3748',
+    fontWeight: '500',
+  },
+  availabilityTime: {
+    fontSize: 16,
+    color: '#4A5568',
+  },
+  bookAppointmentButton: {
+    backgroundColor: '#28B6F6',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 20,
+    marginBottom: 10,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  bookAppointmentButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
   },
   viewDetailsButton: {
     flexDirection: 'row',
