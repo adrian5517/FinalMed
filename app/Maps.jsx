@@ -7,7 +7,7 @@ import { BlurView } from 'expo-blur';
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoiYWRyaWFuNTUxNyIsImEiOiJjbWIweTc2M28wdnNtMmpwN201eXgzcWhjIn0.6LUIpjg8cwe6gYGLYJ31wA';
 const MAPBOX_STYLE = 'light-v11';
-const CLINICS_API = 'https://your-api-url.com/api/clinics'; // <-- Palitan ng tamang endpoint
+const CLINICS_API = 'https://nagamedserver.onrender.com/api/clinic/';
 
 const NAGA_CITY = {
   latitude: 13.6218,
@@ -49,9 +49,11 @@ const Maps = () => {
       try {
         const response = await fetch(CLINICS_API);
         const data = await response.json();
+        console.log('Clinics fetched:', data); // DEBUG LOG
         setClinics(Array.isArray(data) ? data : []);
       } catch (error) {
         setClinics([]);
+        console.log('Error fetching clinics:', error); // DEBUG LOG
       }
       setLoadingClinics(false);
     };
@@ -128,9 +130,12 @@ const Maps = () => {
           clinic.location && (
             <Marker
               key={clinic._id || idx}
-              coordinate={clinic.location}
-              title={clinic.name}
-              description={clinic.address}
+              coordinate={{
+                latitude: clinic.location.latitude,
+                longitude: clinic.location.longitude
+              }}
+              title={clinic.clinic_name}
+              description={clinic.location.address}
               pinColor="#82C45C"
               onPress={() => setSelectedClinic(clinic)}
             />
@@ -193,23 +198,31 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 100,
     alignSelf: 'center',
-    width: '90%',
-    padding: 16,
-    borderRadius: 20,
+    width: '92%',
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    borderRadius: 24,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderWidth: 0,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 8,
   },
   infoText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: 'white',
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    letterSpacing: 0.1,
+    textAlign: 'center',
   },
   infoTextSmall: {
     fontSize: 14,
-    color: 'white',
-    marginTop: 4,
+    color: '#666',
+    marginTop: 6,
+    textAlign: 'center',
   },
   loadingBox: {
     position: 'absolute',
