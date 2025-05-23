@@ -7,98 +7,140 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
-import { useRouter, Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
+import { FontAwesome } from "@expo/vector-icons";
+import axios from "axios";
+import COLORS from "../constant/colors";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
   const router = useRouter();
 
-  // API Call for Password Reset
-  const handlePasswordReset = async () => {
-    setErrorMessage(""); // Clear previous errors
-    setSuccessMessage(""); // Clear previous success messages
-    console.log("Sending password reset code to:", email);
+  const handleResetPassword = async () => {
+    if (!email.trim()) {
+      setErrorMessage("Please enter your email address");
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setErrorMessage("Please enter a valid email address");
+      return;
+    }
+
+    setLoading(true);
+    setErrorMessage("");
 
     try {
-      const response = await fetch("https://your-api.com/forgot-password", { // 🔹 Replace with actual API endpoint
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await axios.post(
+        "https://nagamedserver.onrender.com/api/auth/forgot-password",
+        {
+          email: email.trim().toLowerCase(),
         },
-        body: JSON.stringify({ email }), // 🔹 Send email to backend
-      });
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
 
-      const data = await response.json();
-
-      if (response.ok) {
-        console.log("Password reset email sent:", data);
-        setSuccessMessage("A reset code has been sent to your email.");
-        
-        // Wait briefly before navigating
-        setTimeout(() => {
-          router.push("/SendCode"); // 🔹 Navigate to OTP verification screen
-        }, 1500);
-      } else {
-        setErrorMessage(data.message || "Failed to send reset code.");
+      if (response.status === 200) {
+        Alert.alert(
+          "Reset Link Sent",
+          "Please check your email for password reset instructions.",
+          [
+            {
+              text: "OK",
+              onPress: () => router.push("/Signin")
+            }
+          ]
+        );
       }
     } catch (error) {
-      console.error("Error sending password reset request:", error);
-      setErrorMessage("Network error. Please try again.");
+      console.error("Error requesting password reset:", error);
+      if (error.response) {
+        if (error.response.status === 404) {
+          setErrorMessage("No account found with this email address");
+        } else {
+          setErrorMessage(error.response.data.message || "Failed to send reset link. Please try again.");
+        }
+      } else {
+        setErrorMessage("Network error. Please check your connection and try again.");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false }} />
-
+      <Stack.Screen 
+        options={{ 
+          headerShown: true,
+          title: "Forgot Password",
+          headerStyle: {
+            backgroundColor: COLORS.primaryBlue,
+          },
+          headerTintColor: "#fff",
+          headerTitleStyle: {
+            fontWeight: "600",
+          },
+        }} 
+      />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.container}
       >
-        <View style={styles.innerContainer}>
-          {/* Title */}
-          <Text style={styles.title}>
-            <Text style={styles.blueText}>Forgot password?</Text>
-          </Text>
-
-          {/* Subtitle */}
-          <Text style={styles.subtitle}>
-            Don’t worry! It happens. Please enter the email associated with your account.
-          </Text>
-
-          {/* Email Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Email address</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your email address"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-            />
+        <View style={styles.formContainer}>
+          <View style={styles.headerContainer}>
+            <Text style={styles.title}>Reset Your Password</Text>
+            <Text style={styles.subtitle}>
+              Enter your email address and we'll send you instructions to reset your password.
+            </Text>
           </View>
 
-          {/* Error Message */}
+          <View style={styles.inputContainer}>
+            <View style={styles.inputWrapper}>
+              <Text style={styles.label}>Email address</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your email"
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                autoComplete="email"
+                keyboardType="email-address"
+                placeholderTextColor="#A0A0A0"
+              />
+            </View>
+          </View>
+
           {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
 
-          {/* Success Message */}
-          {successMessage ? <Text style={styles.successText}>{successMessage}</Text> : null}
-
-          {/* Send Code Button */}
-          <TouchableOpacity style={styles.sendCodeButton} onPress={handlePasswordReset}>
-            <Text style={styles.buttonText}>Send code</Text>
+          <TouchableOpacity 
+            style={styles.resetButton} 
+            onPress={handleResetPassword}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Send Reset Link</Text>
+            )}
           </TouchableOpacity>
 
-          {/* Remember Password / Log in */}
-          <TouchableOpacity onPress={() => router.push("/Signin")} style={styles.loginRedirect}>
-            <Text style={styles.rememberText}>
-              Remember password? <Text style={styles.loginText}>Log in</Text>
-            </Text>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <FontAwesome name="arrow-left" size={16} color={COLORS.primaryBlue} />
+            <Text style={styles.backButtonText}>Back to Sign In</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -106,83 +148,89 @@ export default function ForgotPassword() {
   );
 }
 
-// Styles
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    paddingHorizontal: 20,
+    backgroundColor: "#FFFFFF",
   },
-  innerContainer: {
-    marginTop: 20,
+  formContainer: {
+    flex: 1,
+    padding: 24,
+    justifyContent: "center",
+  },
+  headerContainer: {
+    marginBottom: 32,
   },
   title: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: "bold",
-    color: "#1E1E1E",
-  },
-  blueText: {
-    color: "#007bff",
+    color: COLORS.primaryBlue,
+    marginBottom: 12,
   },
   subtitle: {
-    fontSize: 14,
-    color: "#6C6C6C",
-    marginVertical: 10,
+    fontSize: 16,
+    color: "#666",
+    lineHeight: 22,
   },
   inputContainer: {
-    marginTop: 20,
+    gap: 20,
+  },
+  inputWrapper: {
+    gap: 8,
   },
   label: {
     fontSize: 14,
-    fontWeight: "500",
-    color: "#1E1E1E",
-    marginBottom: 5,
+    color: "#333",
+    fontWeight: "600",
+    marginLeft: 4,
   },
   input: {
-    height: 48,
-    borderWidth: 1,
+    height: 52,
+    borderWidth: 1.5,
     borderColor: "#E0E0E0",
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 16,
     fontSize: 16,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#FAFAFA",
+    color: "#333",
   },
-  sendCodeButton: {
-    backgroundColor: "#28B6F6",
-    height: 48,
-    borderRadius: 8,
+  resetButton: {
+    backgroundColor: COLORS.primaryGreen,
+    height: 52,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 20,
+    marginTop: 24,
+    shadowColor: COLORS.primaryBlue,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   buttonText: {
     color: "white",
     fontSize: 16,
-    fontWeight: "bold",
-  },
-  loginRedirect: {
-    marginTop: 20,
-    alignSelf: "center",
-  },
-  rememberText: {
-    fontSize: 14,
-    color: "#6C6C6C",
-  },
-  loginText: {
-    color: "#007bff",
-    fontWeight: "bold",
+    fontWeight: "600",
   },
   errorText: {
-    color: "red",
+    color: "#FF4444",
     fontSize: 14,
-    marginTop: 10,
+    marginTop: 8,
     textAlign: "center",
   },
-  successText: {
-    color: "green",
-    fontSize: 14,
-    marginTop: 10,
-    textAlign: "center",
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 24,
+    gap: 8,
+  },
+  backButtonText: {
+    color: COLORS.primaryBlue,
+    fontSize: 16,
+    fontWeight: "500",
   },
 });
