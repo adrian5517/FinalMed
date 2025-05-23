@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter, Stack } from "expo-router";
 import { FontAwesome, FontAwesome5 } from "@expo/vector-icons";
 import axios from "axios";
+import { checkAuth } from './auth';
 
 export default function SignIn() {
   const [email, setEmail] = useState("");
@@ -34,6 +35,17 @@ export default function SignIn() {
     }
   };
 
+  useEffect(() => {
+    const checkExistingAuth = async () => {
+      const isAuthenticated = await checkAuth();
+      if (isAuthenticated) {
+        router.push("/Home");
+      }
+    };
+    
+    checkExistingAuth();
+  }, []);
+
   const handleSignIn = async () => {
     if (!email.trim() || !password.trim()) {
       setErrorMessage("Please enter both email and password");
@@ -44,6 +56,8 @@ export default function SignIn() {
     setErrorMessage("");
   
     try {
+      console.log("Attempting login with:", { email: email.trim().toLowerCase() });
+      
       const response = await axios.post(
         "https://nagamedserver.onrender.com/api/auth/signin",
         {
@@ -51,52 +65,73 @@ export default function SignIn() {
           password: password.trim()
         },
         {
-          withCredentials: true, // Important for handling cookies
           headers: {
             'Content-Type': 'application/json'
-          }
+          },
+          withCredentials: true
         }
       );
   
+      console.log("Login response:", response.data);
       const data = response.data;
   
       if (response.status === 200 && data.user) {
         console.log("Login Successful:", data);
   
-        // Store the user data in AsyncStorage
-        await AsyncStorage.setItem("userId", data.user._id);
-        await AsyncStorage.setItem("fullName", data.user.fullname);
-        await AsyncStorage.setItem("userEmail", data.user.email);
-        if (data.user.profilePicture) {
-          await AsyncStorage.setItem("profilePicture", data.user.profilePicture);
-        }
+        try {
+          // Store all user data at once
+          await AsyncStorage.multiSet([
+            ["userId", data.user._id],
+            ["fullName", data.user.fullname],
+            ["userEmail", data.user.email],
+            ["profilePicture", data.user.profilePicture || ""]
+          ]);
+          
+          // Get token from cookie
+          const cookies = response.headers['set-cookie'];
+          if (cookies) {
+            const tokenCookie = cookies.find(cookie => cookie.startsWith('token='));
+            if (tokenCookie) {
+              const token = tokenCookie.split(';')[0].split('=')[1];
+              await AsyncStorage.setItem("token", token);
+              console.log("Token stored from cookie");
+            }
+          }
   
-        // Clear form fields
-        setEmail("");
-        setPassword("");
-        
-        // Navigate to Home
-        router.push("/Home");
+          // Clear form fields
+          setEmail("");
+          setPassword("");
+          
+          // Navigate to Home
+          router.push("/Home");
+        } catch (storageError) {
+          console.error("Error storing auth data:", storageError);
+          setErrorMessage("Error saving login information. Please try again.");
+        }
       } else {
+        console.log("Login failed - Invalid response:", data);
         setErrorMessage("Invalid email or password");
       }
     } catch (error) {
       console.error("Error logging in:", error);
       if (error.response) {
-        // The request was made and the server responded with a status code
-        // that falls out of the range of 2xx
+        console.log("Error response data:", error.response.data);
+        console.log("Error response status:", error.response.status);
+        
         if (error.response.status === 401) {
           setErrorMessage("Invalid email or password");
         } else if (error.response.status === 400) {
           setErrorMessage(error.response.data.message || "Please check your credentials");
+        } else if (error.response.status === 500) {
+          setErrorMessage("Server error. Please try again later.");
         } else {
           setErrorMessage(error.response.data.message || "An error occurred during sign in");
         }
       } else if (error.request) {
-        // The request was made but no response was received
+        console.log("No response received:", error.request);
         setErrorMessage("No response from server. Please check your internet connection.");
       } else {
-        // Something happened in setting up the request that triggered an Error
+        console.log("Error setting up request:", error.message);
         setErrorMessage("An unexpected error occurred. Please try again.");
       }
     } finally {

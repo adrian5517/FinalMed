@@ -51,7 +51,8 @@ export default function Layout() {
     segments[0] === "CreateAccount" ||
     segments[0] === "ForgotPassword" || 
     segments[0] === "ChatList" || 
-    segments[0] === "ChatConversation";
+    segments[0] === "ChatConversation" ||
+    segments[0] === "CreateAppointment";
 
   const isHome = segments.length === 0 || segments[0] === "Home";
 

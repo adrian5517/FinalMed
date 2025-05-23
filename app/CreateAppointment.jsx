@@ -5,33 +5,34 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  ScrollView,
   StyleSheet,
   Alert,
-  TouchableWithoutFeedback,
-  Keyboard,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import DropDownPicker from 'react-native-dropdown-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import mongoose from 'mongoose';
-
-const generateObjectId = () => new mongoose.Types.ObjectId().toString();
+import { Ionicons } from '@expo/vector-icons';
 
 const CreateAppointment = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const { doctorId, clinicId } = route.params || {};
+  const { doctorId, clinicId, doctorName, clinicName } = route.params || {};
 
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [filledBy, setFilledBy] = useState('self');
   const [clinicOpen, setClinicOpen] = useState(false);
   const [doctorOpen, setDoctorOpen] = useState(false);
-  const [selectedClinic, setSelectedClinic] = useState(null);
-  const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const [filledByOpen, setFilledByOpen] = useState(false);
+  const [selectedClinic, setSelectedClinic] = useState(clinicId || null);
+  const [selectedDoctor, setSelectedDoctor] = useState(doctorId || null);
   const [clinics, setClinics] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [appointmentDate, setAppointmentDate] = useState(new Date());
@@ -40,6 +41,11 @@ const CreateAppointment = () => {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const filledByOptions = [
+    { label: 'Self', value: 'self' },
+    { label: 'Relative', value: 'relative' }
+  ];
 
   // Fetch clinics on mount
   useEffect(() => {
@@ -56,14 +62,15 @@ const CreateAppointment = () => {
     }
   }, [selectedClinic]);
 
-  // Fetch clinics and preselect if param exists
   const fetchClinics = async () => {
     try {
+      console.log('Fetching clinics...');
       const response = await axios.get('https://nagamedserver.onrender.com/api/clinic');
       const clinicsData = response.data.map(clinic => ({
         label: clinic.clinic_name,
         value: clinic._id,
       }));
+      console.log('Fetched clinics:', clinicsData);
       setClinics(clinicsData);
 
       if (clinicsData.length > 0) {
@@ -79,28 +86,33 @@ const CreateAppointment = () => {
     }
   };
 
-  // Fetch doctors for selected clinic and preselect if param exists
   const fetchDoctors = async (clinicId) => {
     try {
-      const response = await axios.get(`https://nagamedserver.onrender.com/api/clinic/${clinicId}/doctor`);
-      const doctorsData = response.data.map(doctor => ({
-        label: doctor.fullname,
-        value: doctor._id,
-        specialization: doctor.specialization,
-        email: doctor.email,
-        contact: doctor.contact,
-        availability: doctor.availability
-      }));
-      setDoctors(doctorsData);
+      console.log('Fetching doctors for clinic:', clinicId);
+      const response = await axios.get(`https://nagamedserver.onrender.com/api/doctorauth/`);
+      
+      if (response.data && response.data.success && Array.isArray(response.data.data)) {
+        const doctorsData = response.data.data
+          .filter(doctor => doctor.clinic_id === clinicId)
+          .map(doctor => ({
+            label: doctor.fullname,
+            value: doctor._id,
+            specialization: doctor.specialization,
+          }));
+        
+        console.log('Fetched doctors:', doctorsData);
+        setDoctors(doctorsData);
 
-      if (doctorsData.length > 0) {
-        if (doctorId && doctorsData.some(d => d.value === doctorId)) {
-          setSelectedDoctor(doctorId);
-        } else {
-          setSelectedDoctor(doctorsData[0].value);
+        if (doctorsData.length > 0) {
+          if (doctorId && doctorsData.some(d => d.value === doctorId)) {
+            setSelectedDoctor(doctorId);
+          } else {
+            setSelectedDoctor(doctorsData[0].value);
+          }
         }
       } else {
-        setSelectedDoctor(null);
+        console.log('No doctors data found');
+        setDoctors([]);
       }
     } catch (error) {
       console.error('Error fetching doctors:', error.message);
@@ -108,7 +120,6 @@ const CreateAppointment = () => {
     }
   };
 
-  // Date picker handler
   const handleDateChange = (event, selectedDate) => {
     setShowDatePicker(false);
     if (selectedDate) {
@@ -116,7 +127,6 @@ const CreateAppointment = () => {
     }
   };
 
-  // Time picker handler
   const handleTimeChange = (event, selectedTime) => {
     setShowTimePicker(false);
     if (selectedTime) {
@@ -124,7 +134,6 @@ const CreateAppointment = () => {
     }
   };
 
-  // Book appointment
   const handleBookAppointment = async () => {
     if (!name.trim()) {
       Alert.alert('Validation Error', 'Please enter your name.');
@@ -137,11 +146,11 @@ const CreateAppointment = () => {
 
     try {
       setLoading(true);
+      const userId = await AsyncStorage.getItem('userId');
+      if (!userId) {
+        throw new Error('User ID not found');
+      }
 
-      const patientInfo = await AsyncStorage.getItem('userInfo');
-      const patientId = patientInfo ? JSON.parse(patientInfo).id : generateObjectId();
-
-      // Combine date & time properly
       const combinedDateTime = new Date(appointmentDate);
       combinedDateTime.setHours(appointmentTime.getHours());
       combinedDateTime.setMinutes(appointmentTime.getMinutes());
@@ -151,19 +160,19 @@ const CreateAppointment = () => {
       const appointmentData = {
         doctor_id: selectedDoctor,
         clinic_id: selectedClinic,
-        patient_id: patientId,
+        patient_id: userId,
         patient_name: name.trim(),
         appointment_date_time: combinedDateTime.toISOString(),
         status: 'Pending',
+        filled_by: filledBy,
+        description: description.trim()
       };
 
       console.log('Sending appointment data:', appointmentData);
 
       const response = await axios.post('https://nagamedserver.onrender.com/api/appointment', appointmentData);
-
       setLoading(false);
       Alert.alert('Success', 'Appointment booked successfully!');
-      resetForm();
       navigation.goBack();
     } catch (error) {
       setLoading(false);
@@ -172,41 +181,135 @@ const CreateAppointment = () => {
     }
   };
 
-  // Reset form inputs
-  const resetForm = () => {
-    setName('');
-    setSelectedClinic(null);
-    setSelectedDoctor(null);
-    setAppointmentDate(new Date());
-    setAppointmentTime(new Date());
-    setErrorMessage('');
-  };
-
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <Text style={styles.title}>Book an Appointment</Text>
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#2D3748" />
+          </TouchableOpacity>
+          <Text style={styles.title}>Book Appointment</Text>
+          <View style={styles.headerRight} />
+        </View>
 
-          <View style={styles.inputContainer}>
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.formGroup}>
             <Text style={styles.label}>Your Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your name"
-              value={name}
-              onChangeText={setName}
-              returnKeyType="done"
-              onSubmitEditing={Keyboard.dismiss}
+            <View style={styles.inputWrapper}>
+              <Ionicons name="person-outline" size={20} color="#718096" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your full name"
+                value={name}
+                onChangeText={setName}
+                placeholderTextColor="#A0AEC0"
+              />
+            </View>
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Booking For</Text>
+            <DropDownPicker
+              open={filledByOpen}
+              value={filledBy}
+              items={filledByOptions}
+              setOpen={setFilledByOpen}
+              setValue={setFilledBy}
+              placeholder="Select who is booking"
+              style={styles.dropdown}
+              dropDownContainerStyle={styles.dropdownContainer}
+              listItemLabelStyle={styles.dropdownItemLabel}
+              placeholderStyle={styles.dropdownPlaceholder}
+              zIndex={3000}
             />
           </View>
 
-          <View style={styles.inputContainer}>
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Description (Optional)</Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="document-text-outline" size={20} color="#718096" style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Enter appointment description"
+                value={description}
+                onChangeText={setDescription}
+                placeholderTextColor="#A0AEC0"
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+              />
+            </View>
+          </View>
+
+          <View style={[styles.formGroup, { zIndex: 2000, marginBottom: clinicOpen ? 300 : 20 }]}>
+            <Text style={styles.label}>Select a Clinic</Text>
+            <DropDownPicker
+              open={clinicOpen}
+              value={selectedClinic}
+              items={clinics}
+              setOpen={setClinicOpen}
+              setValue={setSelectedClinic}
+              setItems={setClinics}
+              placeholder="Select clinic"
+              style={styles.dropdown}
+              dropDownContainerStyle={styles.dropdownContainer}
+              listItemLabelStyle={styles.dropdownItemLabel}
+              placeholderStyle={styles.dropdownPlaceholder}
+              onOpen={() => {
+                setDoctorOpen(false);
+                setFilledByOpen(false);
+              }}
+            />
+          </View>
+
+          <View style={[styles.formGroup, { zIndex: 1000, marginBottom: doctorOpen ? 300 : 20 }]}>
+            <Text style={styles.label}>Select a Doctor</Text>
+            <DropDownPicker
+              open={doctorOpen}
+              value={selectedDoctor}
+              items={doctors}
+              setOpen={setDoctorOpen}
+              setValue={setSelectedDoctor}
+              setItems={setDoctors}
+              placeholder="Select doctor"
+              disabled={!selectedClinic}
+              style={styles.dropdown}
+              dropDownContainerStyle={styles.dropdownContainer}
+              listItemLabelStyle={styles.dropdownItemLabel}
+              placeholderStyle={styles.dropdownPlaceholder}
+              onOpen={() => {
+                setClinicOpen(false);
+                setFilledByOpen(false);
+              }}
+            />
+          </View>
+
+          <View style={styles.formGroup}>
             <Text style={styles.label}>Appointment Date</Text>
-            <TouchableOpacity style={styles.dateInput} onPress={() => setShowDatePicker(true)}>
-              <Text>{appointmentDate.toDateString()}</Text>
+            <TouchableOpacity 
+              style={styles.dateTimeInput}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Ionicons name="calendar-outline" size={20} color="#718096" style={styles.inputIcon} />
+              <Text style={styles.dateTimeText}>
+                {appointmentDate.toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </Text>
             </TouchableOpacity>
             {showDatePicker && (
               <DateTimePicker
@@ -219,10 +322,20 @@ const CreateAppointment = () => {
             )}
           </View>
 
-          <View style={styles.inputContainer}>
+          <View style={styles.formGroup}>
             <Text style={styles.label}>Appointment Time</Text>
-            <TouchableOpacity style={styles.dateInput} onPress={() => setShowTimePicker(true)}>
-              <Text>{appointmentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text>
+            <TouchableOpacity 
+              style={styles.dateTimeInput}
+              onPress={() => setShowTimePicker(true)}
+            >
+              <Ionicons name="time-outline" size={20} color="#718096" style={styles.inputIcon} />
+              <Text style={styles.dateTimeText}>
+                {appointmentTime.toLocaleTimeString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: true
+                })}
+              </Text>
             </TouchableOpacity>
             {showTimePicker && (
               <DateTimePicker
@@ -233,135 +346,169 @@ const CreateAppointment = () => {
               />
             )}
           </View>
-
-          <View style={{ zIndex: 2000, marginBottom: clinicOpen ? 300 : 20 }}>
-            <Text style={styles.label}>Select a Clinic</Text>
-            <DropDownPicker
-              open={clinicOpen}
-              value={selectedClinic}
-              items={clinics}
-              setOpen={setClinicOpen}
-              setValue={setSelectedClinic}
-              setItems={setClinics}
-              placeholder="Select clinic"
-              listMode="SCROLLVIEW"
-              dropDownDirection="DOWN"
-              style={styles.dropdown}
-              dropDownContainerStyle={styles.dropdownContainer}
-              onOpen={() => setDoctorOpen(false)}
-            />
-          </View>
-
-          <View style={{ zIndex: 1000, marginBottom: doctorOpen ? 300 : 20 }}>
-            <Text style={styles.label}>Select a Doctor</Text>
-            <DropDownPicker
-              open={doctorOpen}
-              value={selectedDoctor}
-              items={doctors}
-              setOpen={setDoctorOpen}
-              setValue={setSelectedDoctor}
-              setItems={setDoctors}
-              placeholder="Select doctor"
-              disabled={!selectedClinic}
-              listMode="SCROLLVIEW"
-              dropDownDirection="DOWN"
-              style={styles.dropdown}
-              dropDownContainerStyle={styles.dropdownContainer}
-              onOpen={() => setClinicOpen(false)}
-              labelStyle={styles.dropdownLabel}
-              listItemLabelStyle={styles.dropdownItemLabel}
-              customItemContainerStyle={styles.dropdownItemContainer}
-              customItemLabelStyle={styles.dropdownItemLabel}
-              renderItem={item => (
-                <View style={styles.dropdownItem}>
-                  <Text style={styles.dropdownItemName}>{item.label}</Text>
-                  <Text style={styles.dropdownItemSpecialty}>{item.specialization}</Text>
-                </View>
-              )}
-            />
-          </View>
-
-          {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
-
-          {loading ? (
-            <ActivityIndicator size="large" color="#007AFF" />
-          ) : (
-            <TouchableOpacity style={styles.submitButton} onPress={handleBookAppointment}>
-              <Text style={styles.submitButtonText}>Book Appointment</Text>
-            </TouchableOpacity>
-          )}
         </ScrollView>
+
+        {errorMessage ? (
+          <View style={styles.errorContainer}>
+            <Ionicons name="alert-circle-outline" size={20} color="#E53E3E" />
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity 
+            style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+            onPress={handleBookAppointment}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Text style={styles.submitButtonText}>Book Appointment</Text>
+                <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
     </TouchableWithoutFeedback>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  scrollContent: { padding: 20, paddingBottom: 50 },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
-  inputContainer: { marginBottom: 15 },
-  label: { fontSize: 16, marginBottom: 5 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
+  container: {
+    flex: 1,
+    backgroundColor: '#F7FAFC',
   },
-  dateInput: {
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  headerRight: {
+    width: 40,
+  },
+  backButton: {
+    padding: 8,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#2D3748',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  contentContainer: {
+    padding: 20,
+  },
+  formGroup: {
+    marginBottom: 24,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2D3748',
+    marginBottom: 8,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 12,
-    borderRadius: 6,
-    justifyContent: 'center',
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  inputIcon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    color: '#2D3748',
+  },
+  textArea: {
+    height: 100,
+    textAlignVertical: 'top',
+  },
+  dateTimeInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  dateTimeText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#2D3748',
+    marginLeft: 12,
   },
   dropdown: {
-    borderColor: '#ccc',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    minHeight: 48,
   },
   dropdownContainer: {
-    borderColor: '#ccc',
+    backgroundColor: '#FFFFFF',
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
   },
-  submitButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 15,
-    borderRadius: 6,
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  submitButtonText: {
-    color: 'white',
-    fontWeight: '600',
+  dropdownPlaceholder: {
+    color: '#A0AEC0',
     fontSize: 16,
-  },
-  errorText: {
-    color: 'red',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  dropdownLabel: {
-    fontSize: 16,
-    color: '#333',
-  },
-  dropdownItemContainer: {
-    paddingVertical: 8,
-  },
-  dropdownItem: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  dropdownItemName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  dropdownItemSpecialty: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 2,
   },
   dropdownItemLabel: {
+    color: '#2D3748',
     fontSize: 16,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF5F5',
+    padding: 12,
+    borderRadius: 8,
+    marginHorizontal: 20,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#E53E3E',
+    marginLeft: 8,
+    fontSize: 14,
+  },
+  buttonContainer: {
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  submitButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#4299E1',
+    paddingVertical: 16,
+    borderRadius: 12,
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#A0AEC0',
+  },
+  submitButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    marginRight: 8,
   },
 });
 

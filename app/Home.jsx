@@ -1,81 +1,103 @@
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Modal } from "react-native";
 import { Link, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { StatusBar } from "expo-status-bar";
+import { checkAuth, getAuthHeaders } from './auth';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function Home() {
   const [fullname, setFullname] = useState("User");
   const [doctors, setDoctors] = useState([]);
   const [news, setNews] = useState([]);
+  const [appointments, setAppointments] = useState([]);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    const fetchUserData = async () => {
+    const checkAuthAndFetchData = async () => {
       try {
-        const userId = await AsyncStorage.getItem("userId");
-        if (!userId) {
-          console.error("User ID not found.");
+        const isAuthenticated = await checkAuth();
+        if (!isAuthenticated) {
+          console.log('Not authenticated, redirecting to login');
+          router.replace('/Signin');
           return;
         }
 
-        const response = await fetch(`https://nagamedserver.onrender.com/api/user/${userId}`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch user data.");
-        }
-
-        const data = await response.json();
-        setFullname(data.fullname || "User");
+        await fetchUserData();
+        await fetchAppointments();
+        await fetchDoctors();
+        await fetchHealthNews();
       } catch (error) {
-        console.error("Error fetching user data:", error);
+        console.error('Error in checkAuthAndFetchData:', error);
+        router.replace('/Signin');
       }
     };
 
-    const NEWS_API_KEY = '9ddce8dc6ab6468b9af4576177c0fc64';
-
-    const fetchHealthNews = async () => {
-      try {
-        const response = await fetch(
-          `https://newsapi.org/v2/top-headlines?category=health&language=en&apiKey=${NEWS_API_KEY}`
-        );
-        const data = await response.json();
-        if (data.articles) {
-          setNews(data.articles.slice(0, 5)); // Get top 5 news
-        }
-      } catch (error) {
-        console.error("Error fetching news:", error);
-      }
-    };
-
-    
-    const fetchDoctors = async () => {
-      try {
-        const response = await fetch("https://nagamedserver.onrender.com/api/doctorauth/");
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        console.log("Doctors data:", data); // Log the full response
-
-        if (data.success && Array.isArray(data.data)) {
-          setDoctors(data.data);
-          console.log("Number of doctors:", data.data.length);
-        } else {
-          console.error("Invalid data format received:", data);
-          setDoctors([]);
-        }
-      } catch (error) {
-        console.error("Error fetching doctors:", error);
-        setDoctors([]);
-      }
-    };
-
-    fetchUserData();
-    fetchDoctors();
-    fetchHealthNews();
+    checkAuthAndFetchData();
   }, []);
+
+  const fetchUserData = async () => {
+    try {
+      const userId = await AsyncStorage.getItem("userId");
+      if (!userId) {
+        console.error("User ID not found.");
+        return;
+      }
+
+      const headers = await getAuthHeaders();
+      const response = await fetch(`https://nagamedserver.onrender.com/api/user/${userId}`, {
+        headers
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch user data.");
+      }
+
+      const data = await response.json();
+      setFullname(data.fullname || "User");
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+    }
+  };
+
+  const fetchAppointments = async () => {
+    try {
+      const userId = await AsyncStorage.getItem("userId");
+      if (!userId) {
+        console.error("User ID not found");
+        return;
+      }
+
+      const headers = await getAuthHeaders();
+      console.log("Fetching appointments for user:", userId);
+
+      const response = await fetch(`https://nagamedserver.onrender.com/api/appointment/user/${userId}`, {
+        method: 'GET',
+        headers
+      });
+      
+      console.log("Appointment response status:", response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        console.error("Appointment fetch error:", {
+          status: response.status,
+          statusText: response.statusText,
+          errorData
+        });
+        throw new Error(`Failed to fetch appointments: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log("Appointments fetched successfully:", data);
+      setAppointments(data);
+    } catch (error) {
+      console.error("Error fetching appointments:", error.message);
+      setAppointments([]);
+    }
+  };
 
   const menuItems = [
     { text: "Book Appointment", image: require("../assets/images/bookappointments.png"), path: "/CreateAppointment" },
@@ -85,6 +107,134 @@ export default function Home() {
 
   const getProfilePicture = (email) => {
     return `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`;
+  };
+
+  const formatDateTime = (dateTimeString) => {
+    const date = new Date(dateTimeString);
+    return date.toLocaleString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const fetchDoctors = async () => {
+    try {
+      const response = await fetch("https://nagamedserver.onrender.com/api/doctorauth/");
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success && Array.isArray(data.data)) {
+        setDoctors(data.data);
+      } else {
+        setDoctors([]);
+      }
+    } catch (error) {
+      console.error("Error fetching doctors:", error);
+      setDoctors([]);
+    }
+  };
+
+  const NEWS_API_KEY = '9ddce8dc6ab6468b9af4576177c0fc64';
+
+  const fetchHealthNews = async () => {
+    try {
+      const response = await fetch(
+        `https://newsapi.org/v2/top-headlines?category=health&language=en&apiKey=${NEWS_API_KEY}`
+      );
+      const data = await response.json();
+      if (data.articles) {
+        setNews(data.articles.slice(0, 5)); // Get top 5 news
+      }
+    } catch (error) {
+      console.error("Error fetching news:", error);
+    }
+  };
+
+  const getDoctorName = (doctorId) => {
+    const doctor = doctors.find(d => d._id === doctorId);
+    return doctor ? doctor.fullname : 'Unknown Doctor';
+  };
+
+  const getClinicName = (clinicId) => {
+    // You'll need to fetch and store clinic data similar to doctors
+    return 'Clinic Name'; // Replace with actual clinic name lookup
+  };
+
+  const AppointmentModal = ({ appointment, visible, onClose }) => {
+    if (!appointment) return null;
+
+    return (
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={visible}
+        onRequestClose={onClose}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Appointment Details</Text>
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              <View style={styles.modalSection}>
+                <Text style={styles.modalLabel}>Status</Text>
+                <View style={[styles.statusBadge, { backgroundColor: appointment.status === 'Approved' ? '#A7EC80' : '#FFB74D' }]}>
+                  <Text style={styles.statusText}>{appointment.status}</Text>
+                </View>
+              </View>
+
+              <View style={styles.modalSection}>
+                <Text style={styles.modalLabel}>Date & Time</Text>
+                <Text style={styles.modalValue}>{formatDateTime(appointment.appointment_date_time)}</Text>
+              </View>
+
+              <View style={styles.modalSection}>
+                <Text style={styles.modalLabel}>Doctor</Text>
+                <Text style={styles.modalValue}>{getDoctorName(appointment.doctor_id)}</Text>
+              </View>
+
+              <View style={styles.modalSection}>
+                <Text style={styles.modalLabel}>Clinic</Text>
+                <Text style={styles.modalValue}>{getClinicName(appointment.clinic_id)}</Text>
+              </View>
+
+              <View style={styles.modalSection}>
+                <Text style={styles.modalLabel}>Appointment ID</Text>
+                <Text style={styles.modalValue}>{appointment.appointment_id}</Text>
+              </View>
+
+              <View style={styles.modalSection}>
+                <Text style={styles.modalLabel}>Filled By</Text>
+                <Text style={styles.modalValue}>{appointment.filled_by}</Text>
+              </View>
+
+              {appointment.description && (
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalLabel}>Description</Text>
+                  <Text style={styles.modalValue}>{appointment.description}</Text>
+                </View>
+              )}
+
+              <View style={styles.modalSection}>
+                <Text style={styles.modalLabel}>Created At</Text>
+                <Text style={styles.modalValue}>{new Date(appointment.createdAt).toLocaleString()}</Text>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    );
   };
 
   return (
@@ -98,7 +248,7 @@ export default function Home() {
         <View style={styles.hr} />
         <Text style={styles.pt1}>Good day, {fullname}!</Text>
 
-        {/* Horizontal Scroll for Menu Icons */}
+        {/* Menu Icons Section */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -117,22 +267,75 @@ export default function Home() {
           ))}
         </ScrollView>
 
-        <View style={styles.doctorsSection}>
+        {/* Appointments Section */}
+        <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.header3txt}>Available Doctors</Text>
-            {doctors.length > 2 && (
-              <TouchableOpacity 
-                onPress={() => router.push('/Doctors')}
-                style={styles.seeAllButton}
-              >
-                <Text style={styles.seeAllText}>See All</Text>
-              </TouchableOpacity>
-            )}
+            <Text style={styles.sectionTitle}>Upcoming Appointments</Text>
+            <TouchableOpacity onPress={() => router.push('/Status')}>
+              <Text style={styles.seeAll}>See All</Text>
+            </TouchableOpacity>
           </View>
+          {appointments.length > 0 ? (
+            appointments.map((appointment) => (
+              <TouchableOpacity 
+                key={appointment._id} 
+                style={styles.appointmentCard}
+                onPress={() => {
+                  setSelectedAppointment(appointment);
+                  setModalVisible(true);
+                }}
+              >
+                <View style={styles.appointmentHeader}>
+                  <View style={styles.appointmentStatus}>
+                    <View style={[
+                      styles.statusDot,
+                      { backgroundColor: appointment.status === 'Approved' ? '#A7EC80' : '#FFB74D' }
+                    ]} />
+                    <Text style={styles.statusText}>{appointment.status}</Text>
+                  </View>
+                  <Text style={styles.appointmentDate}>
+                    {formatDateTime(appointment.appointment_date_time)}
+                  </Text>
+                </View>
+                <View style={styles.appointmentDetails}>
+                  <Text style={styles.appointmentDoctor}>
+                    Doctor: {getDoctorName(appointment.doctor_id)}
+                  </Text>
+                  <Text style={styles.appointmentClinic}>
+                    Clinic: {getClinicName(appointment.clinic_id)}
+                  </Text>
+                  <Text style={styles.appointmentFilledBy}>
+                    Filled by: {appointment.filled_by}
+                  </Text>
+                </View>
+                <View style={styles.viewDetailsButton}>
+                  <Text style={styles.viewDetailsText}>View Details</Text>
+                  <Ionicons name="chevron-forward" size={16} color="#28B6F6" />
+                </View>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View style={styles.emptyAppointments}>
+              <Text style={styles.emptyText}>No upcoming appointments</Text>
+            </View>
+          )}
+        </View>
 
-          <View style={styles.doctorListContainer}>
+        {/* Doctors Section with Slider */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Available Doctors</Text>
+            <TouchableOpacity onPress={() => router.push('/Doctors')}>
+              <Text style={styles.seeAll}>See All</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.doctorsSlider}
+          >
             {doctors.length > 0 ? (
-              doctors.slice(0, 2).map((doctor) => (
+              doctors.map((doctor) => (
                 <View key={doctor._id} style={styles.doctorCard}>
                   <View style={styles.doctorInfoContainer}>
                     <View style={styles.doctorImageContainer}>
@@ -182,7 +385,7 @@ export default function Home() {
                 <Text style={styles.noDoctorsText}>No doctors available at the moment.</Text>
               </View>
             )}
-          </View>
+          </ScrollView>
         </View>
 
         {/* Health News Section */}
@@ -240,6 +443,12 @@ export default function Home() {
           </ScrollView>
         </View>
       </ScrollView>
+
+      <AppointmentModal
+        appointment={selectedAppointment}
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+      />
     </View>
   );
 }
@@ -314,10 +523,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
   },
   doctorCard: {
+    width: 320,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
+    marginRight: 15,
     borderWidth: 1,
     borderColor: '#E2E8F0',
     elevation: 2,
@@ -529,18 +739,138 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
   },
-  seeAllButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: '#F0F7FF',
-    borderRadius: 12,
+  appointmentCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  seeAllText: {
-    color: '#4A90E2',
+  appointmentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  appointmentStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  statusText: {
     fontSize: 14,
     fontWeight: '600',
+    color: '#2D3748',
   },
-  doctorsSection: {
-    marginBottom: 25,
+  appointmentDate: {
+    fontSize: 14,
+    color: '#718096',
+  },
+  appointmentDetails: {
+    marginTop: 8,
+  },
+  appointmentDoctor: {
+    fontSize: 13,
+    color: '#718096',
+    marginBottom: 4,
+  },
+  appointmentClinic: {
+    fontSize: 13,
+    color: '#718096',
+  },
+  appointmentFilledBy: {
+    fontSize: 13,
+    color: '#718096',
+    marginTop: 4,
+  },
+  emptyAppointments: {
+    padding: 20,
+    backgroundColor: '#F8FAFF',
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  doctorsSlider: {
+    paddingHorizontal: 15,
+    paddingBottom: 10,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    width: '90%',
+    maxHeight: '80%',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2D3748',
+  },
+  closeButton: {
+    padding: 5,
+  },
+  modalBody: {
+    padding: 20,
+  },
+  modalSection: {
+    marginBottom: 20,
+  },
+  modalLabel: {
+    fontSize: 14,
+    color: '#718096',
+    marginBottom: 5,
+  },
+  modalValue: {
+    fontSize: 16,
+    color: '#2D3748',
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  viewDetailsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  viewDetailsText: {
+    color: '#28B6F6',
+    fontSize: 14,
+    fontWeight: '600',
+    marginRight: 4,
   },
 });
