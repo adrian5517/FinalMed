@@ -85,12 +85,19 @@ export default function DoctorsPage() {
   });
 
   const handleSelectDoctor = (doctor) => {
+    // Find the clinic assigned to the doctor
+    const clinicId = doctor.clinic_id;
+    // Try to get the clinic name from the doctor object, fallback to empty string
+    const clinicName = doctor.clinic_name || '';
+
     router.push({
       pathname: "/CreateAppointment",
       params: {
         doctorId: doctor._id,
         doctorName: doctor.fullname,
         specialization: doctor.specialization,
+        clinicId: clinicId,
+        clinicName: clinicName,
       },
     });
   };
