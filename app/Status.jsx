@@ -206,16 +206,15 @@ export default function StatusScreen({ route }) {
         throw new Error("No authentication token found");
       }
 
-      const response = await fetch(`https://nagamedserver.onrender.com/api/appointment/user/${userId}`, {
+      console.log('Updating appointment:', { appointmentId, newStatus });
+
+      const response = await fetch(`https://nagamedserver.onrender.com/api/appointment/${appointmentId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ 
-          appointmentId,
-          status: newStatus 
-        })
+        body: JSON.stringify({ status: newStatus })
       });
 
       if (!response.ok) {
@@ -227,6 +226,9 @@ export default function StatusScreen({ route }) {
         });
         throw new Error(`Failed to update appointment: ${response.status} ${response.statusText}`);
       }
+
+      const updatedData = await response.json();
+      console.log('Appointment updated successfully:', updatedData);
 
       // Refresh appointments after update
       await fetchAppointments();
@@ -275,6 +277,11 @@ export default function StatusScreen({ route }) {
       console.error("Error deleting appointment:", error.message);
       Alert.alert("Error", "Failed to delete appointment. Please try again.");
     }
+  };
+
+  const getProfilePicture = (email) => {
+    if (!email) return 'https://api.dicebear.com/7.x/avataaars/png?seed=default';
+    return `https://api.dicebear.com/7.x/avataaars/png?seed=${email}`;
   };
 
   return (
@@ -354,8 +361,15 @@ export default function StatusScreen({ route }) {
           <View key={doctor._id} style={styles.doctorCard}>
             <View style={styles.doctorHeader}>
               <Image 
-                source={{ uri: doctor.profilePicture }} 
+                source={{ uri: getProfilePicture(doctor.email) }} 
                 style={styles.doctorImage}
+                onError={(e) => {
+                  console.log("Debug - Doctor image loading error:", e.nativeEvent.error);
+                  // Fallback to default avatar if image fails to load
+                  e.target.setNativeProps({
+                    source: { uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=default' }
+                  });
+                }}
               />
               <View style={styles.doctorInfo}>
                 <Text style={styles.doctorName}>{doctor.fullname}</Text>

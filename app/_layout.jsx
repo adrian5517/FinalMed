@@ -29,21 +29,62 @@ export default function Layout() {
   const fetchProfilePicture = async () => {
     try {
       const token = await AsyncStorage.getItem("authToken");
+      const email = await AsyncStorage.getItem("userEmail");
+      
+      console.log("Debug - Token:", token ? "exists" : "missing");
+      console.log("Debug - Email:", email);
+      
       if (token) {
+        console.log("Debug - Fetching profile from API...");
         const response = await fetch("https://nagamedserver.onrender.com/api/user/profile", {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
         const data = await response.json();
-        if (data.profilePicture) {
-          setProfilePicture(data.profilePicture);
+        console.log("Debug - API Response:", data);
+        
+        // Handle profile picture with fallback to DiceBear
+        let profilePicture = data.profilePicture;
+        console.log("Debug - Profile Picture from API:", profilePicture);
+        
+        if (!profilePicture && email) {
+          profilePicture = `https://api.dicebear.com/7.x/avataaars/png?seed=${email}`;
+          console.log("Debug - Using DiceBear fallback:", profilePicture);
+        }
+        
+        // Convert SVG to PNG for React Native compatibility
+        if (profilePicture && profilePicture.includes('api.dicebear.com') && profilePicture.includes('/svg?')) {
+          profilePicture = profilePicture.replace('/svg?', '/png?');
+          console.log("Debug - Converted to PNG:", profilePicture);
+        }
+        
+        console.log("Debug - Final Profile Picture:", profilePicture);
+        setProfilePicture(profilePicture);
+      } else {
+        console.log("Debug - No token found, using DiceBear fallback");
+        if (email) {
+          const fallbackPicture = `https://api.dicebear.com/7.x/avataaars/png?seed=${email}`;
+          console.log("Debug - Error fallback to DiceBear:", fallbackPicture);
+          setProfilePicture(fallbackPicture);
         }
       }
     } catch (error) {
       console.error("Error fetching profile picture:", error);
+      // Fallback to DiceBear if there's an error
+      const email = await AsyncStorage.getItem("userEmail");
+      if (email) {
+        const fallbackPicture = `https://api.dicebear.com/7.x/avataaars/png?seed=${email}`;
+        console.log("Debug - Error fallback to DiceBear:", fallbackPicture);
+        setProfilePicture(fallbackPicture);
+      }
     }
   };
+
+  // Add useEffect to monitor profilePicture state changes
+  useEffect(() => {
+    console.log("Debug - Profile Picture State Updated:", profilePicture);
+  }, [profilePicture]);
 
   const hideNavBar =
     segments.length === 0 ||
@@ -97,6 +138,7 @@ export default function Layout() {
                 <Image
                   source={{ uri: profilePicture }}
                   style={styles.profilePicture}
+                  onError={(e) => console.log("Debug - Image loading error:", e.nativeEvent.error)}
                 />
               ) : (
                 <View style={styles.profilePlaceholder}>

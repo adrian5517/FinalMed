@@ -13,6 +13,7 @@ export default function Home() {
   const [appointments, setAppointments] = useState([]);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [clinics, setClinics] = useState([]);
   const router = useRouter();
 
   useEffect(() => {
@@ -28,6 +29,7 @@ export default function Home() {
         await fetchUserData();
         await fetchAppointments();
         await fetchDoctors();
+        await fetchClinics();
         await fetchHealthNews();
       } catch (error) {
         console.error('Error in checkAuthAndFetchData:', error);
@@ -106,7 +108,8 @@ export default function Home() {
   ];
 
   const getProfilePicture = (email) => {
-    return `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`;
+    if (!email) return 'https://api.dicebear.com/7.x/avataaars/png?seed=default';
+    return `https://api.dicebear.com/7.x/avataaars/png?seed=${email}`;
   };
 
   const formatDateTime = (dateTimeString) => {
@@ -141,6 +144,20 @@ export default function Home() {
     }
   };
 
+  const fetchClinics = async () => {
+    try {
+      const response = await fetch("https://nagamedserver.onrender.com/api/clinic");
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      setClinics(data);
+    } catch (error) {
+      console.error("Error fetching clinics:", error);
+      setClinics([]);
+    }
+  };
+
   const NEWS_API_KEY = '9ddce8dc6ab6468b9af4576177c0fc64';
 
   const fetchHealthNews = async () => {
@@ -159,12 +176,14 @@ export default function Home() {
 
   const getDoctorName = (doctorId) => {
     const doctor = doctors.find(d => d._id === doctorId);
+    console.log('Finding doctor:', { doctorId, doctors, foundDoctor: doctor });
     return doctor ? doctor.fullname : 'Unknown Doctor';
   };
 
   const getClinicName = (clinicId) => {
-    // You'll need to fetch and store clinic data similar to doctors
-    return 'Clinic Name'; // Replace with actual clinic name lookup
+    const clinic = clinics.find(c => c._id === clinicId);
+    console.log('Finding clinic:', { clinicId, clinics, foundClinic: clinic });
+    return clinic ? clinic.clinic_name : 'Unknown Clinic';
   };
 
   const AppointmentModal = ({ appointment, visible, onClose }) => {
@@ -342,6 +361,13 @@ export default function Home() {
                       <Image 
                         source={{ uri: getProfilePicture(doctor.email) }} 
                         style={styles.doctorImage}
+                        onError={(e) => {
+                          console.log("Debug - Doctor image loading error:", e.nativeEvent.error);
+                          // Fallback to default avatar if image fails to load
+                          e.target.setNativeProps({
+                            source: { uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=default' }
+                          });
+                        }}
                       />
                     </View>
                     <View style={styles.doctorDetails}>
