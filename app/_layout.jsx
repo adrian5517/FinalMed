@@ -122,6 +122,16 @@ export default function Layout() {
           <View style={styles.headerRight}>
             <TouchableOpacity
               style={styles.notificationButton}
+              onPress={() => router.push("/Maps")}
+            >
+              <Ionicons
+                name="map-outline"
+                size={24}
+                color="#2D3748"
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.notificationButton}
               onPress={() => console.log("Open Notifications")}
             >
               <View style={styles.notificationBadge}>
