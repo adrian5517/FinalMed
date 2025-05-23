@@ -5,7 +5,7 @@ import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 
-const MAPBOX_TOKEN = 'pk.eyJ1IjoiYWRyaWFuNTUxNyIsImEiOiJjbTlyMHpubjYxcG9lMmtwdDVtc3FtaXRxIn0.6Qx1Pf_dIOCfRB7n7tWl1g';
+const MAPBOX_TOKEN = 'pk.eyJ1IjoiYWRyaWFuNTUxNyIsImEiOiJjbWIweTc2M28wdnNtMmpwN201eXgzcWhjIn0.6LUIpjg8cwe6gYGLYJ31wA';
 const MAPBOX_STYLE = 'light-v11';
 const CLINICS_API = 'https://your-api-url.com/api/clinics'; // <-- Palitan ng tamang endpoint
 
@@ -111,11 +111,11 @@ const Maps = () => {
         provider={PROVIDER_DEFAULT}
       >
         <UrlTile
-          urlTemplate={`https://api.mapbox.com/styles/v1/mapbox/${MAPBOX_STYLE}/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`}
+          urlTemplate={`https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/512/{z}/{x}/{y}@2x?access_token=${MAPBOX_TOKEN}`}
           maximumZ={18}
           minimumZ={5}
           flipY={false}
-          tileSize={256}
+          tileSize={512}
         />
         {location && (
           <Marker
