@@ -517,6 +517,11 @@ export default function Home() {
               {doctors.length > 0 ? (
                 doctors.map((doctor) => (
                   <View key={doctor._id} style={styles.doctorCard}>
+                    <View style={styles.logoContainer}>
+                      <Text style={styles.logoText}>
+                        Naga<Text style={styles.logoMed}>Med</Text>
+                      </Text>
+                    </View>
                     <View style={styles.doctorInfoContainer}>
                       <View style={styles.doctorImageContainer}>
                         <Image 
@@ -1213,5 +1218,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginRight: 4,
+  },
+  logoContainer: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 1,
+  },
+  logoText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0288D0',
+  },
+  logoMed: {
+    color: '#82C45C',
   },
 });

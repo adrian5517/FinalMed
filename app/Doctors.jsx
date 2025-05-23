@@ -104,6 +104,11 @@ export default function DoctorsPage() {
 
     return (
       <View style={styles.doctorCard}>
+        <View style={styles.logoContainer}>
+          <Text style={styles.logoText}>
+            Naga<Text style={styles.logoMed}>Med</Text>
+          </Text>
+        </View>
         <View style={styles.doctorHeader}>
           <View style={styles.doctorImageContainer}>
             <Image
@@ -351,5 +356,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#718096",
     textAlign: "center",
+  },
+  logoContainer: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 1,
+  },
+  logoText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0288D0',
+  },
+  logoMed: {
+    color: '#82C45C',
   },
 });
