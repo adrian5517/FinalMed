@@ -5,6 +5,7 @@ import { useRoute } from '@react-navigation/native';
 import { useRouter } from "expo-router";
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { v4 as uuidv4 } from 'uuid';
 
 export default function Home() {
   const route = useRoute();
@@ -62,37 +63,28 @@ export default function Home() {
   useEffect(() => {
     async function fetchDoctors() {
       try {
-        let url = "https://nagamedserver.onrender.com/api/doctor";
-        const clinicToUse = paramClinicId || selectedClinic;
-
-        if (clinicToUse) {
-          url += `?clinicId=${clinicToUse}`;
-        }
-
-        const res = await fetch(url);
+        const res = await fetch("https://nagamedserver.onrender.com/api/doctorauth/");
         const data = await res.json();
-        const normalized = data.map(d => ({ ...d, id: d._id }));
-        setDoctors(normalized);
-
-        if (paramClinicId && paramClinicId !== selectedClinic) {
-          setSelectedClinic(paramClinicId);
+        if (data.success && Array.isArray(data.data)) {
+          setDoctors(data.data);
+        } else {
+          setDoctors([]);
         }
-
         if (paramDoctorId) {
-          const foundDoctor = normalized.find(d => d.id === paramDoctorId);
+          const foundDoctor = data.data.find(d => d._id === paramDoctorId);
           if (foundDoctor) {
             setSelectedDoctor(foundDoctor);
           } else {
             setSelectedDoctor(null);
           }
-        } else if (normalized.length > 0) {
-          setSelectedDoctor(normalized[0]);
+        } else if (data.data.length > 0) {
+          setSelectedDoctor(data.data[0]);
         }
       } catch (e) {
         console.error("Error fetching doctors:", e);
+        setDoctors([]);
       }
     }
-
     fetchDoctors();
   }, [paramClinicId, paramDoctorId]);
 
@@ -123,7 +115,7 @@ export default function Home() {
 
   const getDoctorName = (doctorId) => {
     const doctor = doctors.find(d => d._id === doctorId);
-    return doctor ? doctor.fullname : 'Loading...';
+    return doctor ? doctor.fullname : 'Unknown Doctor';
   };
 
   const getClinicName = (clinicId) => {
