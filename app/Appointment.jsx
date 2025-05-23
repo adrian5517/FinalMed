@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, TextInput, Alert, Modal } from "react-native";
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, TextInput, Alert, Modal, Platform } from "react-native";
 import { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRoute } from '@react-navigation/native';
@@ -418,26 +418,122 @@ export default function Home() {
   const EditAppointmentModal = ({ visible, onClose }) => {
     if (!selectedAppointmentForEdit) return null;
 
-    const handleDateChange = (event, date) => {
-      setShowDatePicker(false);
-      if (date) {
-        setSelectedDate(date);
-        // Preserve the current time when changing date
-        const currentTime = selectedTime;
-        date.setHours(currentTime.getHours());
-        date.setMinutes(currentTime.getMinutes());
-      }
-    };
+    // Use local state for pickers
+    const [editDate, setEditDate] = useState(new Date(selectedAppointmentForEdit.appointment_date_time));
+    const [editTime, setEditTime] = useState(new Date(selectedAppointmentForEdit.appointment_date_time));
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [showTimePicker, setShowTimePicker] = useState(false);
 
-    const handleTimeChange = (event, time) => {
-      setShowTimePicker(false);
-      if (time) {
-        setSelectedTime(time);
-        // Preserve the current date when changing time
-        const currentDate = selectedDate;
-        time.setFullYear(currentDate.getFullYear());
-        time.setMonth(currentDate.getMonth());
-        time.setDate(currentDate.getDate());
+    useEffect(() => {
+      if (selectedAppointmentForEdit) {
+        setEditDate(new Date(selectedAppointmentForEdit.appointment_date_time));
+        setEditTime(new Date(selectedAppointmentForEdit.appointment_date_time));
+      }
+    }, [selectedAppointmentForEdit]);
+
+    // Fallback for doctor name
+    const doctorName = getDoctorName(selectedAppointmentForEdit.doctor_id);
+    const displayDoctor = doctorName && doctorName !== 'Loading...' ? doctorName : 'Unknown Doctor';
+
+    // Date Picker Modal
+    const renderDatePickerModal = () => (
+      <Modal
+        transparent
+        animationType="slide"
+        visible={showDatePicker}
+        onRequestClose={() => setShowDatePicker(false)}
+      >
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.2)' }}>
+          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 0, paddingTop: 24, paddingHorizontal: 0 }}>
+            <Text style={{ fontSize: 20, fontWeight: '700', color: '#22577A', textAlign: 'center', marginBottom: 16 }}>Select Date</Text>
+            <View style={{ height: 1, backgroundColor: '#E2E8F0', marginBottom: 16 }} />
+            <View style={{ alignItems: 'center', justifyContent: 'center', minHeight: 220 }}>
+              <DateTimePicker
+                value={editDate}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'default' : 'default'}
+                onChange={(event, selected) => {
+                  if (selected) {
+                    const newDate = new Date(selected);
+                    newDate.setHours(editTime.getHours());
+                    newDate.setMinutes(editTime.getMinutes());
+                    setEditDate(newDate);
+                    setEditTime(newDate);
+                  }
+                }}
+                minimumDate={new Date()}
+                style={{ width: '100%' }}
+              />
+            </View>
+            <TouchableOpacity style={{ alignSelf: 'center', marginTop: 24, marginBottom: 32, backgroundColor: '#28B6F6', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 48 }} onPress={() => setShowDatePicker(false)}>
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>Done</Text>
+            </TouchableOpacity>
+            <View style={{ height: 24 }} />
+          </View>
+        </View>
+      </Modal>
+    );
+
+    // Time Picker Modal
+    const renderTimePickerModal = () => (
+      <Modal
+        transparent
+        animationType="slide"
+        visible={showTimePicker}
+        onRequestClose={() => setShowTimePicker(false)}
+      >
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.2)' }}>
+          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 0, paddingTop: 24, paddingHorizontal: 0 }}>
+            <Text style={{ fontSize: 20, fontWeight: '700', color: '#22577A', textAlign: 'center', marginBottom: 16 }}>Select Time</Text>
+            <View style={{ height: 1, backgroundColor: '#E2E8F0', marginBottom: 16 }} />
+            <View style={{ alignItems: 'center', justifyContent: 'center', minHeight: 220 }}>
+              <DateTimePicker
+                value={editTime}
+                mode="time"
+                display={Platform.OS === 'ios' ? 'default' : 'default'}
+                onChange={(event, selected) => {
+                  if (selected) {
+                    const newTime = new Date(selected);
+                    newTime.setFullYear(editDate.getFullYear());
+                    newTime.setMonth(editDate.getMonth());
+                    newTime.setDate(editDate.getDate());
+                    setEditTime(newTime);
+                    setEditDate(newTime);
+                  }
+                }}
+                style={{ width: '100%' }}
+              />
+            </View>
+            <TouchableOpacity style={{ alignSelf: 'center', marginTop: 24, marginBottom: 32, backgroundColor: '#28B6F6', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 48 }} onPress={() => setShowTimePicker(false)}>
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>Done</Text>
+            </TouchableOpacity>
+            <View style={{ height: 24 }} />
+          </View>
+        </View>
+      </Modal>
+    );
+
+    const handleUpdate = async () => {
+      try {
+        const updatedDateTime = new Date(editDate);
+        updatedDateTime.setHours(editTime.getHours());
+        updatedDateTime.setMinutes(editTime.getMinutes());
+        updatedDateTime.setSeconds(0);
+        updatedDateTime.setMilliseconds(0);
+
+        const response = await fetch(`https://nagamedserver.onrender.com/api/appointment/${selectedAppointmentForEdit._id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ appointment_date_time: updatedDateTime.toISOString() }),
+        });
+        if (response.ok) {
+          onClose();
+          Alert.alert('Success', 'Appointment updated!');
+        } else {
+          Alert.alert('Error', 'Failed to update appointment');
+        }
+      } catch (e) {
+        Alert.alert('Error', 'Failed to update appointment');
       }
     };
 
@@ -449,100 +545,39 @@ export default function Home() {
         onRequestClose={onClose}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={styles.modalContentFixedButton}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Reschedule Appointment</Text>
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                 <Ionicons name="close" size={24} color="#666" />
               </TouchableOpacity>
             </View>
+            <ScrollView style={{ padding: 24 }} contentContainerStyle={{ paddingBottom: 90 }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 16, color: '#2D3748' }}>Doctor: <Text style={{ fontWeight: '400' }}>{displayDoctor}</Text></Text>
+              <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 24, color: '#2D3748' }}>Clinic: <Text style={{ fontWeight: '400' }}>{getClinicName(selectedAppointmentForEdit.clinic_id)}</Text></Text>
 
-            <ScrollView style={styles.modalBody}>
-              <View style={styles.rescheduleInfo}>
-                <View style={styles.rescheduleInfoItem}>
-                  <Ionicons name="person-outline" size={20} color="#22577A" />
-                  <Text style={styles.rescheduleInfoText}>
-                    {getDoctorName(selectedAppointmentForEdit.doctor_id)}
-                  </Text>
-                </View>
-                <View style={styles.rescheduleInfoItem}>
-                  <Ionicons name="business-outline" size={20} color="#22577A" />
-                  <Text style={styles.rescheduleInfoText}>
-                    {getClinicName(selectedAppointmentForEdit.clinic_id)}
-                  </Text>
-                </View>
-              </View>
+              <TouchableOpacity style={styles.simplePickerButton} onPress={() => setShowDatePicker(true)}>
+                <Ionicons name="calendar-outline" size={20} color="#22577A" style={{ marginRight: 8 }} />
+                <Text style={styles.simplePickerButtonText}>
+                  {editDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                </Text>
+              </TouchableOpacity>
 
-              <View style={styles.dateTimeContainer}>
-                <View style={styles.dateTimeSection}>
-                  <View style={styles.dateTimeHeader}>
-                    <Ionicons name="calendar-outline" size={24} color="#28B6F6" />
-                    <Text style={styles.dateTimeLabel}>Select Date</Text>
-                  </View>
-                  <TouchableOpacity 
-                    style={styles.dateTimePickerButton}
-                    onPress={() => setShowDatePicker(true)}
-                  >
-                    <Text style={styles.dateTimePickerText}>
-                      {selectedDate.toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </Text>
-                    <Ionicons name="chevron-down" size={20} color="#666" />
-                  </TouchableOpacity>
-                  {showDatePicker && (
-                    <DateTimePicker
-                      value={selectedDate}
-                      mode="date"
-                      display="spinner"
-                      onChange={handleDateChange}
-                      minimumDate={new Date()}
-                      style={styles.dateTimePicker}
-                    />
-                  )}
-                </View>
-
-                <View style={styles.dateTimeSection}>
-                  <View style={styles.dateTimeHeader}>
-                    <Ionicons name="time-outline" size={24} color="#28B6F6" />
-                    <Text style={styles.dateTimeLabel}>Select Time</Text>
-                  </View>
-                  <TouchableOpacity 
-                    style={styles.dateTimePickerButton}
-                    onPress={() => setShowTimePicker(true)}
-                  >
-                    <Text style={styles.dateTimePickerText}>
-                      {selectedTime.toLocaleTimeString('en-US', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: true
-                      })}
-                    </Text>
-                    <Ionicons name="chevron-down" size={20} color="#666" />
-                  </TouchableOpacity>
-                  {showTimePicker && (
-                    <DateTimePicker
-                      value={selectedTime}
-                      mode="time"
-                      display="spinner"
-                      onChange={handleTimeChange}
-                      style={styles.dateTimePicker}
-                    />
-                  )}
-                </View>
-              </View>
-
-              <TouchableOpacity 
-                style={styles.updateButton}
-                onPress={handleUpdateAppointment}
-              >
-                <Text style={styles.updateButtonText}>Update Appointment</Text>
+              <TouchableOpacity style={styles.simplePickerButton} onPress={() => setShowTimePicker(true)}>
+                <Ionicons name="time-outline" size={20} color="#22577A" style={{ marginRight: 8 }} />
+                <Text style={styles.simplePickerButtonText}>
+                  {editTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                </Text>
               </TouchableOpacity>
             </ScrollView>
+            <View style={styles.fixedButtonContainer}>
+              <TouchableOpacity style={styles.updateButton} onPress={handleUpdate}>
+                <Text style={styles.updateButtonText}>Update Appointment</Text>
+              </TouchableOpacity>
+            </View>
           </View>
+          {showDatePicker && renderDatePickerModal()}
+          {showTimePicker && renderTimePickerModal()}
         </View>
       </Modal>
     );
@@ -1200,7 +1235,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 24,
     marginBottom: 10,
     shadowColor: '#28B6F6',
     shadowOffset: {
@@ -1210,11 +1245,58 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
+    width: '100%',
+    opacity: 1,
   },
   updateButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     fontFamily: 'Poppins',
+    letterSpacing: 0.5,
+  },
+  simplePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  simplePickerButtonText: {
+    fontSize: 16,
+    color: '#2D3748',
+    fontFamily: 'Poppins',
+  },
+  modalContentFixedButton: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    width: '90%',
+    maxHeight: '80%',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  fixedButtonContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'white',
+    padding: 20,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 8,
   },
 });
