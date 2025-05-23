@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image, Alert, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -13,6 +13,61 @@ export default function StatusScreen({ route }) {
   const [clinics, setClinics] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [profilePicture, setProfilePicture] = useState(null);
+
+  const fetchAppointments = async () => {
+    try {
+      const userId = await AsyncStorage.getItem("userId");
+      if (!userId) {
+        console.error("User ID not found");
+        return;
+      }
+
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        console.error("No authentication token found");
+        return;
+      }
+
+      console.log("Fetching appointments for user:", userId);
+
+      const response = await fetch(`https://nagamedserver.onrender.com/api/appointment/user/${userId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log("Appointment response status:", response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        console.error("Appointment fetch error:", {
+          status: response.status,
+          statusText: response.statusText,
+          errorData
+        });
+        throw new Error(`Failed to fetch appointments: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log("Appointments fetched successfully:", data);
+      setAppointments(data);
+    } catch (error) {
+      console.error("Error fetching appointments:", error.message);
+      setAppointments([]);
+      Alert.alert(
+        "Error",
+        "Failed to load appointments. Please try again later.",
+        [{ text: "OK" }]
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     async function fetchUserData() {
@@ -71,58 +126,6 @@ export default function StatusScreen({ route }) {
       }
     };
 
-    const fetchAppointments = async () => {
-      try {
-        const userId = await AsyncStorage.getItem("userId");
-        if (!userId) {
-          console.error("User ID not found");
-          return;
-        }
-
-        const token = await AsyncStorage.getItem('token');
-        if (!token) {
-          console.error("No authentication token found");
-          return;
-        }
-
-        console.log("Fetching appointments for user:", userId);
-
-        const response = await fetch(`https://nagamedserver.onrender.com/api/appointment/user/${userId}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        console.log("Appointment response status:", response.status);
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => null);
-          console.error("Appointment fetch error:", {
-            status: response.status,
-            statusText: response.statusText,
-            errorData
-          });
-          throw new Error(`Failed to fetch appointments: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        console.log("Appointments fetched successfully:", data);
-        setAppointments(data);
-      } catch (error) {
-        console.error("Error fetching appointments:", error.message);
-        setAppointments([]);
-        Alert.alert(
-          "Error",
-          "Failed to load appointments. Please try again later.",
-          [{ text: "OK" }]
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
     const fetchDoctors = async () => {
       try {
         const doctorRes = await axios.get('https://nagamedserver.onrender.com/api/doctorauth/');
@@ -163,6 +166,45 @@ export default function StatusScreen({ route }) {
     fetchDoctors();
     fetchClinics();
   }, [userId]);
+
+  useEffect(() => {
+    fetchProfilePicture();
+  }, []);
+
+  const fetchProfilePicture = async () => {
+    try {
+      const token = await AsyncStorage.getItem("authToken");
+      const email = await AsyncStorage.getItem("userEmail");
+
+      if (token) {
+        const response = await fetch("https://nagamedserver.onrender.com/api/user/profile", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await response.json();
+        let profilePicture = data.profilePicture;
+
+        if (!profilePicture && email) {
+          profilePicture = `https://api.dicebear.com/7.x/avataaars/png?seed=${email}`;
+        }
+
+        // Convert SVG to PNG for React Native compatibility
+        if (profilePicture && profilePicture.includes('api.dicebear.com') && profilePicture.includes('/svg?')) {
+          profilePicture = profilePicture.replace('/svg?', '/png?');
+        }
+
+        setProfilePicture(profilePicture);
+      } else if (email) {
+        setProfilePicture(`https://api.dicebear.com/7.x/avataaars/png?seed=${email}`);
+      }
+    } catch (error) {
+      const email = await AsyncStorage.getItem("userEmail");
+      if (email) {
+        setProfilePicture(`https://api.dicebear.com/7.x/avataaars/png?seed=${email}`);
+      }
+    }
+  };
 
   const formatAvailability = (availability) => {
     if (!availability || !Array.isArray(availability)) return 'Not available';
@@ -279,21 +321,44 @@ export default function StatusScreen({ route }) {
     }
   };
 
-  const getProfilePicture = (email) => {
-    if (!email) return 'https://api.dicebear.com/7.x/avataaars/png?seed=default';
-    return `https://api.dicebear.com/7.x/avataaars/png?seed=${email}`;
+  const getDoctorName = (doctorId) => {
+    const doctor = doctors.find(d => d._id === doctorId);
+    return doctor ? doctor.fullname : 'Unknown Doctor';
+  };
+
+  const getClinicName = (clinicId) => {
+    const clinic = clinics.find(c => c._id === clinicId);
+    return clinic ? clinic.clinic_name : 'Unknown Clinic';
+  };
+
+  // Refresh handler for pull-to-refresh
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchAppointments();
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#28B6F6"]} />
+      }
+    >
       {/* Patient Info Card */}
       <View style={styles.patientCard}>
         <View style={styles.patientInfo}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {fullname ? fullname.charAt(0) : 'U'}
-              {fullname ? fullname.split(' ')[1]?.charAt(0) : ''}
-            </Text>
+            {profilePicture ? (
+              <Image
+                source={{ uri: profilePicture }}
+                style={{ width: 60, height: 60, borderRadius: 30 }}
+              />
+            ) : (
+              <Text style={styles.avatarText}>
+                {fullname ? fullname.charAt(0) : 'U'}
+                {fullname ? fullname.split(' ')[1]?.charAt(0) : ''}
+              </Text>
+            )}
           </View>
           <View style={styles.patientDetails}>
             <Text style={styles.patientName}>{fullname || 'Loading...'}</Text>
@@ -310,104 +375,44 @@ export default function StatusScreen({ route }) {
         <Text style={styles.loadingText}>No appointments scheduled</Text>
       ) : (
         appointments.map((appointment) => (
-          <View key={appointment._id} style={styles.appointmentCard}>
-            <View style={styles.appointmentHeader}>
-              <View style={styles.appointmentInfo}>
-                <Text style={styles.appointmentDateTime}>
-                  {formatDateTime(appointment.appointment_date_time)}
-                </Text>
-                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(appointment.status) }]}>
-                  <Text style={styles.statusText}>{appointment.status}</Text>
+          <View key={appointment._id} style={styles.appointmentCardModern}>
+            <View style={styles.appointmentHeaderModern}>
+              <View style={styles.appointmentHeaderLeft}>
+                <View style={styles.doctorAvatarModern}>
+                  {(() => {
+                    const doctor = doctors.find(d => d._id === appointment.doctor_id);
+                    return (
+                      <Image
+                        source={{ uri: doctor?.email ? `https://api.dicebear.com/7.x/avataaars/png?seed=${doctor.email}` : 'https://api.dicebear.com/7.x/avataaars/png?seed=default' }}
+                        style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: '#28B6F6', backgroundColor: '#fff' }}
+                      />
+                    );
+                  })()}
+                </View>
+                <View style={{ marginLeft: 12 }}>
+                  <Text style={styles.doctorNameModern}>{`Dr. ${getDoctorName(appointment.doctor_id)}`}</Text>
+                  <Text style={styles.clinicNameModern}>{getClinicName(appointment.clinic_id)}</Text>
                 </View>
               </View>
-              <Text style={styles.appointmentId}>ID: {appointment.appointment_id}</Text>
             </View>
-            <View style={styles.appointmentDetails}>
-              <Text style={styles.appointmentLabel}>Doctor ID:</Text>
-              <Text style={styles.appointmentValue}>{appointment.doctor_id}</Text>
-              <Text style={styles.appointmentLabel}>Clinic ID:</Text>
-              <Text style={styles.appointmentValue}>{appointment.clinic_id}</Text>
-            </View>
-            <View style={styles.appointmentActions}>
-              {appointment.status === 'Pending' && (
-                <>
-                  <TouchableOpacity 
-                    style={[styles.actionButton, styles.approveButton]}
-                    onPress={() => handleUpdateAppointment(appointment._id, 'Approved')}
-                  >
-                    <Text style={styles.actionButtonText}>Approve</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.actionButton, styles.cancelButton]}
-                    onPress={() => handleDeleteAppointment(appointment._id)}
-                  >
-                    <Text style={styles.actionButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-          </View>
-        ))
-      )}
-
-      {/* Doctors Section */}
-      <Text style={styles.sectionTitle}>Available Doctors</Text>
-      {loading ? (
-        <Text style={styles.loadingText}>Loading doctors...</Text>
-      ) : doctors.length === 0 ? (
-        <Text style={styles.loadingText}>No doctors available at the moment</Text>
-      ) : (
-        doctors.map((doctor) => (
-          <View key={doctor._id} style={styles.doctorCard}>
-            <View style={styles.doctorHeader}>
-              <Image 
-                source={{ uri: getProfilePicture(doctor.email) }} 
-                style={styles.doctorImage}
-                onError={(e) => {
-                  console.log("Debug - Doctor image loading error:", e.nativeEvent.error);
-                  // Fallback to default avatar if image fails to load
-                  e.target.setNativeProps({
-                    source: { uri: 'https://api.dicebear.com/7.x/avataaars/png?seed=default' }
-                  });
-                }}
-              />
-              <View style={styles.doctorInfo}>
-                <Text style={styles.doctorName}>{doctor.fullname}</Text>
-                <Text style={styles.doctorSpecialty}>{doctor.specialization}</Text>
-                <Text style={styles.doctorContact}>📞 {doctor.contact}</Text>
-                <Text style={styles.doctorAddress}>📍 {doctor.address}</Text>
+            <View style={styles.statusBadgeModernContainer}>
+              <View style={[styles.statusBadgeModern, { backgroundColor: getStatusColor(appointment.status) }]}> 
+                <Text style={styles.statusTextModern}>{appointment.status}</Text>
               </View>
             </View>
-            <View style={styles.availabilitySection}>
-              <Text style={styles.availabilityTitle}>Availability:</Text>
-              <Text style={styles.availabilityText}>{formatAvailability(doctor.availability)}</Text>
+            <View style={styles.appointmentInfoModern}>
+              <Ionicons name="calendar-outline" size={18} color="#28B6F6" style={{ marginRight: 6 }} />
+              <Text style={styles.appointmentDateModern}>{formatDateTime(appointment.appointment_date_time)}</Text>
             </View>
-            <TouchableOpacity style={styles.bookButton}>
-              <Text style={styles.bookButtonText}>Book Appointment</Text>
-            </TouchableOpacity>
-          </View>
-        ))
-      )}
-
-      {/* Clinics Section */}
-      <Text style={styles.sectionTitle}>Available Clinics</Text>
-      {loading ? (
-        <Text style={styles.loadingText}>Loading clinics...</Text>
-      ) : clinics.length === 0 ? (
-        <Text style={styles.loadingText}>No clinics available at the moment</Text>
-      ) : (
-        clinics.map((clinic) => (
-          <View key={clinic._id} style={styles.clinicCard}>
-            <View style={styles.clinicInfo}>
-              <Text style={styles.clinicName}>{clinic.clinic_name}</Text>
-              <View style={styles.clinicDetails}>
-                <Text style={styles.clinicAddress}>📍 {clinic.address}</Text>
-                <Text style={styles.clinicContact}>📞 {clinic.contact}</Text>
+            {appointment.description ? (
+              <View style={styles.appointmentDescModern}>
+                <Ionicons name="chatbubble-ellipses-outline" size={16} color="#718096" style={{ marginRight: 6 }} />
+                <Text style={styles.appointmentDescText}>{appointment.description}</Text>
               </View>
+            ) : null}
+            <View style={styles.appointmentFooterModern}>
+              <Text style={styles.appointmentIdModern}>ID: {appointment.appointment_id}</Text>
             </View>
-            <TouchableOpacity style={styles.clinicButton}>
-              <Ionicons name="arrow-forward" size={24} color="#28B6F6" />
-            </TouchableOpacity>
           </View>
         ))
       )}
@@ -591,79 +596,119 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginLeft: 16,
   },
-  appointmentCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    elevation: 4,
-    shadowColor: "#000",
+  appointmentCardModern: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 18,
+    elevation: 5,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.12,
     shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  appointmentHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  appointmentInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  appointmentDateTime: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#2D3748",
-    marginRight: 16,
-  },
-  statusBadge: {
-    padding: 4,
-    borderRadius: 4,
-  },
-  statusText: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-  appointmentId: {
-    fontSize: 14,
-    color: "#718096",
-  },
-  appointmentDetails: {
-    flex: 1,
-  },
-  appointmentLabel: {
-    fontSize: 14,
-    color: "#718096",
-    marginBottom: 4,
-  },
-  appointmentValue: {
-    fontSize: 14,
-    color: "#2D3748",
-  },
-  appointmentActions: {
+  appointmentHeaderModern: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 12,
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
-  actionButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    minWidth: 100,
+  appointmentHeaderLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  approveButton: {
-    backgroundColor: '#48BB78',
+  doctorAvatarModern: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#28B6F6',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cancelButton: {
-    backgroundColor: '#F56565',
+  doctorNameModern: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#22577A',
   },
-  actionButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+  clinicNameModern: {
+    fontSize: 14,
+    color: '#4A5568',
+    marginTop: 2,
+  },
+  statusBadgeModernContainer: {
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  statusBadgeModern: {
+    paddingVertical: 4,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusTextModern: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  appointmentInfoModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  appointmentDateModern: {
+    fontSize: 15,
+    color: '#2D3748',
+    fontWeight: '500',
+  },
+  appointmentDescModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F7FAFC',
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 8,
+  },
+  appointmentDescText: {
+    fontSize: 14,
+    color: '#718096',
+  },
+  appointmentFooterModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+  appointmentIdModern: {
+    fontSize: 13,
+    color: '#A0AEC0',
+  },
+  appointmentActionsModern: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButtonModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    minWidth: 90,
+    justifyContent: 'center',
+  },
+  editButtonModern: {
+    backgroundColor: '#28B6F6',
+  },
+  actionButtonTextModern: {
+    color: '#fff',
+    fontWeight: '700',
     fontSize: 14,
   },
 });
