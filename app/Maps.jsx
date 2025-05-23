@@ -27,7 +27,37 @@ const Maps = () => {
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [loadingRoute, setLoadingRoute] = useState(false);
   const [loadingClinics, setLoadingClinics] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const mapRef = useRef(null);
+
+  const fetchClinics = async () => {
+    setLoadingClinics(true);
+    try {
+      const response = await fetch(CLINICS_API);
+      const data = await response.json();
+      console.log('Clinics fetched:', data);
+      if (Array.isArray(data)) {
+        setClinics(data);
+      } else {
+        console.log('Invalid data format:', data);
+        setClinics([]);
+      }
+    } catch (error) {
+      console.log('Error fetching clinics:', error);
+      setClinics([]);
+    }
+    setLoadingClinics(false);
+    setIsRefreshing(false);
+  };
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchClinics();
+  };
+
+  useEffect(() => {
+    fetchClinics();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -43,27 +73,9 @@ const Maps = () => {
   }, []);
 
   useEffect(() => {
-    // Fetch clinics from API
-    const fetchClinics = async () => {
-      setLoadingClinics(true);
-      try {
-        const response = await fetch(CLINICS_API);
-        const data = await response.json();
-        console.log('Clinics fetched:', data); // DEBUG LOG
-        setClinics(Array.isArray(data) ? data : []);
-      } catch (error) {
-        setClinics([]);
-        console.log('Error fetching clinics:', error); // DEBUG LOG
-      }
-      setLoadingClinics(false);
-    };
-    fetchClinics();
-  }, []);
-
-  useEffect(() => {
     // Fetch directions from user to selected clinic
     const fetchDirections = async () => {
-      if (selectedClinic && location && selectedClinic.location) {
+      if (selectedClinic && location && selectedClinic.location && typeof selectedClinic.location.latitude === 'number' && typeof selectedClinic.location.longitude === 'number') {
         setLoadingRoute(true);
         try {
           const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${location.longitude},${location.latitude};${selectedClinic.location.longitude},${selectedClinic.location.latitude}?geometries=geojson&access_token=${MAPBOX_TOKEN}`;
@@ -113,7 +125,7 @@ const Maps = () => {
         provider={PROVIDER_DEFAULT}
       >
         <UrlTile
-          urlTemplate={`https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/512/{z}/{x}/{y}@2x?access_token=${MAPBOX_TOKEN}`}
+          urlTemplate={`https://api.mapbox.com/styles/v1/mapbox/${MAPBOX_STYLE}/tiles/512/{z}/{x}/{y}@2x?access_token=${MAPBOX_TOKEN}`}
           maximumZ={18}
           minimumZ={5}
           flipY={false}
@@ -126,8 +138,8 @@ const Maps = () => {
             pinColor="#28B6F6"
           />
         )}
-        {clinics.map((clinic, idx) => (
-          clinic.location && (
+        {clinics && clinics.length > 0 && clinics.map((clinic, idx) => (
+          clinic?.location?.latitude && clinic?.location?.longitude && (
             <Marker
               key={clinic._id || idx}
               coordinate={{
@@ -145,20 +157,42 @@ const Maps = () => {
           <Polyline coordinates={routeCoords} strokeWidth={4} strokeColor="#28B6F6" />
         )}
       </MapView>
-      {loadingClinics && (
-        <View style={styles.loadingBox}><ActivityIndicator size="large" color="#28B6F6" /></View>
+
+      {/* Refresh Button */}
+      <TouchableOpacity 
+        style={styles.refreshButton} 
+        onPress={handleRefresh}
+        disabled={isRefreshing}
+      >
+        <Ionicons 
+          name="refresh" 
+          size={24} 
+          color="#fff" 
+          style={[styles.refreshIcon, isRefreshing && styles.rotating]} 
+        />
+      </TouchableOpacity>
+
+      {(loadingClinics || isRefreshing) && (
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="large" color="#28B6F6" />
+        </View>
       )}
+      
       {loadingRoute && (
-        <View style={styles.loadingBox}><ActivityIndicator size="large" color="#28B6F6" /></View>
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="large" color="#28B6F6" />
+        </View>
       )}
+
       {distance && duration && selectedClinic && (
         <BlurView intensity={50} tint="light" style={styles.infoBox}>
           <Text style={styles.infoText}>
-            Distance to {selectedClinic.name}: {distance.toFixed(2)} km | ETA: {duration.toFixed(1)} mins
+            Distance to {selectedClinic.clinic_name}: {distance.toFixed(2)} km | ETA: {duration.toFixed(1)} mins
           </Text>
-          <Text style={styles.infoTextSmall}>{selectedClinic.address}</Text>
+          <Text style={styles.infoTextSmall}>{selectedClinic.location.address}</Text>
         </BlurView>
       )}
+
       <Modal
         visible={showPermissionModal}
         transparent={true}
@@ -276,6 +310,28 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     letterSpacing: 0.5,
+  },
+  refreshButton: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    backgroundColor: '#28B6F6',
+    borderRadius: 30,
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  refreshIcon: {
+    opacity: 0.9,
+  },
+  rotating: {
+    opacity: 0.7,
   },
 });
 
