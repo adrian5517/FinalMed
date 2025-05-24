@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
   refreshButton: {
     position: 'absolute',
     top: 20,
-    right: 20,
+    left: 20,
     backgroundColor: '#28B6F6',
     borderRadius: 30,
     width: 50,

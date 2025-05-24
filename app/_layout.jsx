@@ -9,6 +9,7 @@ import {
   Platform,
   SafeAreaView,
   Image,
+  StatusBar
 } from "react-native";
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import COLORS from "../constant/colors";
@@ -99,6 +100,7 @@ export default function Layout() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle={Platform.OS === "android" ? "dark-content" : "default"} backgroundColor="#F8FAFC" />
       {!hideNavBar && (
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -245,7 +247,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    height: 65,
+    height: Platform.select({ ios: 65, android: 52 }),
     backgroundColor: "rgba(255, 255, 255, 0.95)",
     paddingHorizontal: 20,
     borderBottomWidth: 1,
@@ -325,10 +327,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-around",
     alignItems: "center",
     width: "100%",
-    height: 90,
+    height: 80,
     backgroundColor: "#fff",
-    paddingHorizontal: 20,
-    paddingBottom: 25,
+    paddingHorizontal: 10,
+    paddingBottom: Platform.OS === "ios" ? 15 : 0,
     position: "absolute",
     bottom: 0,
     borderTopLeftRadius: 30,

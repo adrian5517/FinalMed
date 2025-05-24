@@ -18,11 +18,14 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [profilePicture, setProfilePicture] = useState(null);
+  const [appointments, setAppointments] = useState([]);
   const router = useRouter();
   const { logout, user } = useAuthStore();
 
   useEffect(() => {
     fetchUserData();
+    fetchProfilePicture();
+    fetchAppointments();
   }, []);
 
   const fetchUserData = async () => {
@@ -45,7 +48,7 @@ export default function Profile() {
       const data = await response.json();
       setFullName(data.fullname || "N/A");
       setEmail(data.email || "");
-      setProfilePicture(data.profilePicture);
+      // Don't set profilePicture here, handled by fetchProfilePicture
 
       const storedPhone = await AsyncStorage.getItem("phone");
       const storedAddress = await AsyncStorage.getItem("address");
@@ -54,6 +57,72 @@ export default function Profile() {
     } catch (error) {
       console.error("Error fetching user data:", error);
       setFullName("Error loading name");
+    }
+  };
+
+  // Use the same logic as Status.jsx for fetching profilePicture
+  const fetchProfilePicture = async () => {
+    try {
+      const token = await AsyncStorage.getItem("authToken");
+      const email = await AsyncStorage.getItem("userEmail");
+
+      if (token) {
+        const response = await fetch("https://nagamedserver.onrender.com/api/user/profile", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await response.json();
+        let profilePicture = data.profilePicture;
+
+        if (!profilePicture && email) {
+          profilePicture = `https://api.dicebear.com/7.x/avataaars/png?seed=${email}`;
+        }
+
+        // Convert SVG to PNG for React Native compatibility
+        if (profilePicture && profilePicture.includes('api.dicebear.com') && profilePicture.includes('/svg?')) {
+          profilePicture = profilePicture.replace('/svg?', '/png?');
+        }
+
+        setProfilePicture(profilePicture);
+      } else if (email) {
+        setProfilePicture(`https://api.dicebear.com/7.x/avataaars/png?seed=${email}`);
+      }
+    } catch (error) {
+      const email = await AsyncStorage.getItem("userEmail");
+      if (email) {
+        setProfilePicture(`https://api.dicebear.com/7.x/avataaars/png?seed=${email}`);
+      }
+    }
+  };
+
+  // Fetch appointments and set total
+  const fetchAppointments = async () => {
+    try {
+      const userId = await AsyncStorage.getItem("userId");
+      if (!userId) {
+        setAppointments([]);
+        return;
+      }
+      const token = await AsyncStorage.getItem("authToken");
+      let headers = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+        headers["Content-Type"] = "application/json";
+      }
+      const res = await fetch(`https://nagamedserver.onrender.com/api/appointment/user/${userId}`, {
+        method: 'GET',
+        headers,
+      });
+      const data = await res.json();
+      // Check if data is an array, if not, set empty array
+      if (Array.isArray(data)) {
+        setAppointments(data);
+      } else {
+        setAppointments([]);
+      }
+    } catch (e) {
+      setAppointments([]);
     }
   };
 
@@ -116,7 +185,7 @@ export default function Profile() {
       {/* Quick Stats */}
       <View style={styles.statsContainer}>
         <View style={styles.statItem}>
-          <Text style={styles.statNumber}>12</Text>
+          <Text style={styles.statNumber}>{appointments.length}</Text>
           <Text style={styles.statLabel}>Appointments</Text>
         </View>
         <View style={styles.statDivider} />
