@@ -49,12 +49,25 @@ export default function Home() {
     async function fetchAppointments() {
       try {
         const userId = await AsyncStorage.getItem("userId");
-        if (!userId) return;
+        if (!userId) {
+          console.log("No user ID found");
+          setAppointments([]);
+          return;
+        }
+
         const res = await fetch(`https://nagamedserver.onrender.com/api/appointment/user/${userId}`);
         const data = await res.json();
-        setAppointments(data);
+        
+        // Check if data is an array, if not, set empty array
+        if (Array.isArray(data)) {
+          setAppointments(data);
+        } else {
+          console.log("Invalid appointment data format:", data);
+          setAppointments([]);
+        }
       } catch (e) {
         console.error("Error fetching appointments:", e);
+        setAppointments([]); // Set empty array on error
       }
     }
     fetchAppointments();
@@ -589,7 +602,7 @@ export default function Home() {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Upcoming Appointments</Text>
         </View>
-        {appointments.length > 0 ? (
+        {appointments && appointments.length > 0 ? (
           appointments.map((appointment) => (
             <TouchableOpacity 
               key={appointment._id} 

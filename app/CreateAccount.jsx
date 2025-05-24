@@ -71,10 +71,9 @@ export default function CreateAccount() {
       console.log('Signup response:', data);
 
       if (response.ok) {
-        if (data.user) {
-          // Store user data and token
+        if (data.token) {
+          await AsyncStorage.setItem("token", data.token);
           await AsyncStorage.setItem("userId", data.user._id);
-          await AsyncStorage.setItem("token", data.token); // Store the token
           await AsyncStorage.setItem("fullName", data.user.fullname);
           await AsyncStorage.setItem("userEmail", data.user.email);
           if (data.user.profilePicture) {
