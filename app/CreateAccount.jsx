@@ -290,7 +290,7 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: "#E0E0E0",
     borderRadius: 12,
     backgroundColor: "#FAFAFA",

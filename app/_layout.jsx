@@ -182,23 +182,29 @@ export default function Layout() {
 
       {!hideNavBar && (
         <View style={styles.navBar}>
-          {["Home", "Appointment", "Doctors", "Status", "Profile"].map((item, index) => {
-            const isActive = segments[0] === item;
+          {[
+            { name: "Home", route: "Home" },
+            { name: "Book", route: "Appointment" },
+            { name: "Doctors", route: "Doctors" },
+            { name: "Status", route: "Status" },
+            { name: "Profile", route: "Profile" }
+          ].map((item, index) => {
+            const isActive = segments[0] === item.route;
             return (
               <TouchableOpacity 
                 key={index} 
                 style={[styles.navButton, isActive && styles.activeNavButton]} 
-                onPress={() => router.push(`/${item}`)}
+                onPress={() => router.push(`/${item.route}`)}
               >
                 {isActive ? (
                   <View style={styles.activeButtonContainer}>
-                    <Ionicons name={getIconName(item)} size={24} color="#fff" />
-                    <Text style={styles.activeNavText}>{item}</Text>
+                    <Ionicons name={getIconName(item.route)} size={24} color="#fff" />
+                    <Text style={styles.activeNavText}>{item.name}</Text>
                   </View>
                 ) : (
                   <View style={styles.inactiveButtonContainer}>
-                    <Ionicons name={getIconName(item)} size={24} color="#718096" />
-                    <Text style={styles.navText}>{item}</Text>
+                    <Ionicons name={getIconName(item.route)} size={22} color="#64748B" />
+                    <Text style={styles.navText}>{item.name}</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -230,7 +236,7 @@ function getIconName(name) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#F8FAFC",
   },
   content: {
     flex: 1,
@@ -239,26 +245,28 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    height: 60,
-    backgroundColor: "#fff",
-    paddingHorizontal: 16,
+    height: 65,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
-    elevation: 2,
+    borderBottomColor: "rgba(226, 232, 240, 0.8)",
+    elevation: 0,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    backdropFilter: "blur(10px)",
   },
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
   },
   headerText: {
-    fontSize: 24,
-    fontWeight: "700",
+    fontSize: 26,
+    fontWeight: "800",
     color: COLORS.primaryBlue,
     marginLeft: 8,
+    letterSpacing: -0.5,
   },
   med: {
     color: COLORS.primaryGreen,
@@ -266,38 +274,42 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 20,
   },
   notificationButton: {
     padding: 8,
+    backgroundColor: "rgba(241, 245, 249, 0.8)",
+    borderRadius: 12,
   },
   notificationBadge: {
     position: 'relative',
   },
   badge: {
     position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: -2,
+    right: -2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: '#FF3B30',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   profileButton: {
     padding: 4,
   },
   profilePicture: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     borderWidth: 2,
     borderColor: "#28B6F6",
   },
   profilePlaceholder: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#F7FAFC",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(241, 245, 249, 0.8)",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,
@@ -305,24 +317,27 @@ const styles = StyleSheet.create({
   },
   iconButton: {
     padding: 8,
+    backgroundColor: "rgba(241, 245, 249, 0.8)",
+    borderRadius: 12,
   },
   navBar: {
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
     width: "100%",
-    height: 80,
+    height: 90,
     backgroundColor: "#fff",
-    paddingBottom: 16,
+    paddingHorizontal: 20,
+    paddingBottom: 25,
     position: "absolute",
     bottom: 0,
-    borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
-    elevation: 8,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    elevation: 0,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
+    shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 12,
   },
   navButton: {
     alignItems: "center",
@@ -331,28 +346,28 @@ const styles = StyleSheet.create({
     height: "100%",
   },
   activeNavButton: {
-    transform: [{ translateY: -12 }],
+    transform: [{ translateY: -20 }],
   },
   navText: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: "#718096",
-    marginTop: 4,
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#64748B",
+    marginTop: 8,
   },
   activeButtonContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: "#28B6F6",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 4,
     borderColor: "#fff",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowColor: "#28B6F6",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
   inactiveButtonContainer: {
     alignItems: "center",
@@ -360,9 +375,9 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   activeNavText: {
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 11,
+    fontWeight: "700",
     color: "#fff",
-    marginTop: 4,
+    marginTop: 8,
   },
 });

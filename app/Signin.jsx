@@ -402,9 +402,9 @@ const styles = StyleSheet.create({
   socialButton: {
     backgroundColor: COLORS.primaryWhite,
     borderRadius: 50,
-    borderWidth:'0.5',
+    borderWidth:0.5,
     borderColor:'#D8DADC',
-    width:'50',
+    width:50,
     padding: 12,
     marginHorizontal: 4,
     alignItems: "center",

@@ -83,23 +83,24 @@ export default function Home() {
         headers
       });
       
-      console.log("Appointment response status:", response.status);
+      if (response.status === 404) {
+        console.log("No appointments found for user - this is normal for new users");
+        setAppointments([]);
+        return;
+      }
+      
+      const data = await response.json();
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        console.error("Appointment fetch error:", {
-          status: response.status,
-          statusText: response.statusText,
-          errorData
-        });
         throw new Error(`Failed to fetch appointments: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
       console.log("Appointments fetched successfully:", data);
       setAppointments(data);
     } catch (error) {
-      console.error("Error fetching appointments:", error.message);
+      if (!error.message.includes('404')) {
+        console.error("Error fetching appointments:", error.message);
+      }
       setAppointments([]);
     }
   };
@@ -109,7 +110,7 @@ export default function Home() {
       text: "Book Appointment", 
       icon: "calendar-outline",
       color: "#28B6F6",
-      path: "/CreateAppointment" 
+      path: "/Doctors" 
     },
     { 
       text: "Health Records", 
@@ -503,7 +504,15 @@ export default function Home() {
             ))
           ) : (
             <View style={styles.emptyAppointments}>
+              <Ionicons name="calendar-outline" size={48} color="#CBD5E0" />
               <Text style={styles.emptyText}>No upcoming appointments</Text>
+              <Text style={styles.emptySubText}>Book your first appointment with a doctor</Text>
+              <TouchableOpacity 
+                style={styles.bookFirstAppointmentButton}
+                onPress={() => router.push('/Doctors')}
+              >
+                <Text style={styles.bookFirstAppointmentText}>Book Now</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -1070,10 +1079,40 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   emptyAppointments: {
-    padding: 20,
+    padding: 24,
     backgroundColor: '#F8FAFF',
     borderRadius: 16,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    color: '#2D3748',
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubText: {
+    color: '#718096',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  bookFirstAppointmentButton: {
+    backgroundColor: '#28B6F6',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  bookFirstAppointmentText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   doctorsSliderContainer: {
     position: 'relative',

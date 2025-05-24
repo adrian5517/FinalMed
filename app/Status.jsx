@@ -20,13 +20,15 @@ export default function StatusScreen({ route }) {
     try {
       const userId = await AsyncStorage.getItem("userId");
       if (!userId) {
-        console.error("User ID not found");
+        console.log("No user ID found");
+        setAppointments([]);
         return;
       }
 
       const token = await AsyncStorage.getItem('token');
       if (!token) {
-        console.error("No authentication token found");
+        console.log("No authentication token found");
+        setAppointments([]);
         return;
       }
 
@@ -40,29 +42,33 @@ export default function StatusScreen({ route }) {
         }
       });
 
-      console.log("Appointment response status:", response.status);
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        console.error("Appointment fetch error:", {
-          status: response.status,
-          statusText: response.statusText,
-          errorData
-        });
-        throw new Error(`Failed to fetch appointments: ${response.status} ${response.statusText}`);
+      // Handle 404 status before trying to parse response
+      if (response.status === 404) {
+        console.log("No appointments found for user - this is normal for new users");
+        setAppointments([]);
+        return;
       }
 
+      // Only try to parse response if not 404
       const data = await response.json();
-      console.log("Appointments fetched successfully:", data);
-      setAppointments(data);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch appointments: ${response.status}`);
+      }
+
+      // Check if data is an array, if not, set empty array
+      if (Array.isArray(data)) {
+        setAppointments(data);
+      } else {
+        console.log("Invalid appointment data format:", data);
+        setAppointments([]);
+      }
     } catch (error) {
-      console.error("Error fetching appointments:", error.message);
-      setAppointments([]);
-      Alert.alert(
-        "Error",
-        "Failed to load appointments. Please try again later.",
-        [{ text: "OK" }]
-      );
+      // Only log error if it's not a 404
+      if (!error.message.includes('404')) {
+        console.error("Error fetching appointments:", error.message);
+      }
+      setAppointments([]); // Set empty array on error
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -370,9 +376,14 @@ export default function StatusScreen({ route }) {
       {/* Appointments Section */}
       <Text style={styles.sectionTitle}>Your Appointments</Text>
       {loading ? (
-        <Text style={styles.loadingText}>Loading appointments...</Text>
-      ) : appointments.length === 0 ? (
-        <Text style={styles.loadingText}>No appointments scheduled</Text>
+        <View style={styles.emptyStateContainer}>
+          <Text style={styles.loadingText}>Loading appointments...</Text>
+        </View>
+      ) : !appointments || appointments.length === 0 ? (
+        <View style={styles.emptyStateContainer}>
+          <Ionicons name="calendar-outline" size={48} color="#CBD5E0" />
+          <Text style={styles.emptyText}>No appointments scheduled</Text>
+        </View>
       ) : (
         appointments.map((appointment) => (
           <View key={appointment._id} style={styles.appointmentCardModern}>
@@ -710,6 +721,16 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
     fontSize: 14,
+  },
+  emptyStateContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: '#718096',
+    fontSize: 16,
+    marginTop: 16,
   },
 });
 
